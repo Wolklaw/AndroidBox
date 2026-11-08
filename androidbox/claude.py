@@ -321,13 +321,15 @@ def tool_clear_app_data(arguments):
 
 def tool_push_file(arguments):
     serial = resolve(arguments.get("instance"))
-    return [text_content(adb(serial, "push", arguments["path"], arguments["destination"]).strip())]
+    adb(serial, "push", arguments["path"], arguments["destination"])
+    return [text_content(f"copied to {arguments['destination']}")]
 
 
 def tool_pull_file(arguments):
     serial = resolve(arguments.get("instance"))
     destination = arguments.get("destination") or tempfile.gettempdir()
-    return [text_content(adb(serial, "pull", arguments["path"], destination).strip())]
+    adb(serial, "pull", arguments["path"], destination)
+    return [text_content(f"copied to {destination}")]
 
 
 def tool_rotate(arguments):
