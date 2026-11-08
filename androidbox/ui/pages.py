@@ -1013,6 +1013,7 @@ class LibraryPage(Page):
     def __init__(self, host):
         super().__init__()
         self.host = host
+        self.query = ""
 
     def refresh(self, controller):
         self.clear()
@@ -1032,9 +1033,17 @@ class LibraryPage(Page):
             host.run(look, lambda result: self.loaded(controller, *result), lambda _: None)
             return
         refresh = button("Refresh", lambda: self.reload(controller), kind="secondary")
-        self.add(row(refresh, None))
+        search = QLineEdit(self.query)
+        search.setPlaceholderText("Search apps")
+        search.setClearButtonEnabled(True)
+        search.setMinimumWidth(220)
+        stop_all = button("Stop all", lambda: host.stop_all_apps(controller), kind="secondary")
+        stop_all.setVisible(bool(controller.running))
+        self.add(row(search, None, stop_all, refresh))
         rows = []
-        for package in controller.apps:
+        found = []
+        # Running apps first, then by name
+        for package in sorted(controller.apps, key=lambda p: (p not in controller.running, app_name(p).lower())):
             name = app_name(package)
             own = profiles.game(package).get("fps", 0)
             rates = [("Frame rate: same as instance", 0), *[(f"{fps} FPS", fps) for fps in GAME_FRAME_RATES]]
@@ -1050,13 +1059,24 @@ class LibraryPage(Page):
                 ("Force stop", lambda p=package: host.stop_app(controller, p)),
                 ("Create desktop shortcut", lambda p=package: host.shortcut_for(controller, p)),
                 (None, None),
+                ("Clear data", lambda p=package: host.clear_app_data(controller, p)),
                 ("Uninstall", lambda p=package: host.uninstall_app(controller, p)),
             ])
             actions = [button("Stop", lambda _=False, p=package: host.stop_app(controller, p), kind="secondary")] \
                 if alive else []
-            rows.append(row(avatar(instances.initials(name), COLORS["raised"]), words, None, rate, *actions,
-                            button("Open", lambda _=False, p=package: self.open_app(controller, p)), more,
-                            spacing=10))
+            line = row(avatar(instances.initials(name), COLORS["raised"]), words, None, rate, *actions,
+                       button("Open", lambda _=False, p=package: self.open_app(controller, p)), more, spacing=10)
+            rows.append(line)
+            found.append((f"{name} {package}".lower(), line))
+
+        def narrow(text):
+            self.query = text
+            words = text.lower().split()
+            for haystack, line in found:
+                line.setVisible(all(word in haystack for word in words))
+
+        search.textChanged.connect(narrow)
+        narrow(self.query)
         if rows:
             self.add(card(label(f"Installed · {len(rows)}", "Section"), *rows, spacing=12))
         else:

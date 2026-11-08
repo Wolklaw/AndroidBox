@@ -256,6 +256,28 @@ def tool_clear_app_data(arguments):
     return [text_content(adb(serial, "shell", "pm", "clear", arguments["package"]).strip())]
 
 
+def tool_push_file(arguments):
+    serial = resolve(arguments.get("instance"))
+    return [text_content(adb(serial, "push", arguments["path"], arguments["destination"]).strip())]
+
+
+def tool_pull_file(arguments):
+    serial = resolve(arguments.get("instance"))
+    destination = arguments.get("destination") or tempfile.gettempdir()
+    return [text_content(adb(serial, "pull", arguments["path"], destination).strip())]
+
+
+def tool_rotate(arguments):
+    serial = resolve(arguments.get("instance"))
+    turns = {"portrait": "0", "landscape": "1", "reverse portrait": "2", "reverse landscape": "3"}
+    wanted = arguments["orientation"].lower()
+    if wanted not in turns:
+        raise Problem("orientation must be one of: " + ", ".join(turns))
+    adb(serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0")
+    adb(serial, "shell", "settings", "put", "system", "user_rotation", turns[wanted])
+    return [text_content(f"rotated to {wanted}")]
+
+
 def tool_logcat(arguments):
     serial = resolve(arguments.get("instance"))
     return [text_content(adb(serial, "logcat", "-d", "-t", str(arguments.get("lines", 200))))]
@@ -326,6 +348,18 @@ TOOLS = [
                                               "Destroys its saved state, so only when asked.",
      "inputSchema": {"type": "object", "required": ["package"], "properties": {
          **INSTANCE_PROPERTY, "package": {"type": "string"}}}},
+    {"name": "push_file", "description": "Copy a file from this PC onto the device, for example into "
+                                         "/sdcard/Download/.",
+     "inputSchema": {"type": "object", "required": ["path", "destination"], "properties": {
+         **INSTANCE_PROPERTY, "path": {"type": "string", "description": "A file on this PC."},
+         "destination": {"type": "string", "description": "A path on the device."}}}},
+    {"name": "pull_file", "description": "Copy a file from the device to this PC.",
+     "inputSchema": {"type": "object", "required": ["path"], "properties": {
+         **INSTANCE_PROPERTY, "path": {"type": "string", "description": "A path on the device."},
+         "destination": {"type": "string", "description": "Where to save it on this PC. Defaults to the temp folder."}}}},
+    {"name": "rotate", "description": "Turn the screen: portrait, landscape, reverse portrait or reverse landscape.",
+     "inputSchema": {"type": "object", "required": ["orientation"], "properties": {
+         **INSTANCE_PROPERTY, "orientation": {"type": "string"}}}},
     {"name": "logcat", "description": "Read the last lines of the device log.",
      "inputSchema": {"type": "object", "properties": {
          **INSTANCE_PROPERTY, "lines": {"type": "integer"}}}},
@@ -340,7 +374,8 @@ DISPATCH = {
     "tap": tool_tap, "tap_text": tool_tap_text, "swipe": tool_swipe, "type_text": tool_type_text, "key": tool_key,
     "install_apk": tool_install_apk, "launch_app": tool_launch_app, "stop_app": tool_stop_app,
     "list_apps": tool_list_apps, "current_app": tool_current_app, "open_url": tool_open_url,
-    "clear_app_data": tool_clear_app_data, "logcat": tool_logcat, "adb": tool_adb,
+    "clear_app_data": tool_clear_app_data, "push_file": tool_push_file, "pull_file": tool_pull_file,
+    "rotate": tool_rotate, "logcat": tool_logcat, "adb": tool_adb,
 }
 
 

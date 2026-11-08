@@ -383,6 +383,10 @@ class Emulator:
         code, _ = self.adb("shell", "am", "force-stop", package, timeout=15)
         return code == 0
 
+    def clear_data(self, package):
+        code, output = self.adb("shell", "pm", "clear", package, timeout=30)
+        return code == 0 and "Success" in output
+
     def uninstall(self, package):
         code, output = self.adb("uninstall", package, timeout=120)
         return code == 0 and "Success" in output

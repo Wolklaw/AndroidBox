@@ -263,6 +263,8 @@ class MainWindow(QMainWindow, ScreenActions):
         self.check_acceleration()
         self.check_for_updates()
         self.update_timer.start()
+        if paths.MIGRATED:
+            self.toast("Welcome back to Androidbox. Your instances and settings were moved over from DroidCore", "good")
         if profiles.sync_missing():
             self.toast("Your sync folder isn't available. Using this PC's copy of your profiles for now", "bad")
         for controller in self.controllers.values():
@@ -1445,6 +1447,33 @@ class MainWindow(QMainWindow, ScreenActions):
                        "good" if ok else "bad")
 
         self.run(lambda: controller.emulator.force_stop(package), finished)
+
+    def stop_all_apps(self, controller):
+        packages = sorted(controller.running)
+
+        def stop():
+            return sum(1 for package in packages if controller.emulator.force_stop(package))
+
+        def finished(count):
+            controller.running.clear()
+            if self.page == "library" and self.active() is controller:
+                self.show_page("library")
+            self.toast(f"Stopped {count} app{'s' if count != 1 else ''}", "good")
+
+        self.run(stop, finished)
+
+    def clear_app_data(self, controller, package):
+        def clear():
+            def finished(ok):
+                controller.running.discard(package)
+                self.toast(f"Cleared {app_name(package)}'s data" if ok else f"Couldn't clear {app_name(package)}",
+                           "good" if ok else "bad")
+
+            self.run(lambda: controller.emulator.clear_data(package), finished)
+
+        confirm(self.dialog_parent(), f"Clear {app_name(package)}'s data?",
+                "Its saved games, settings and sign-ins on this instance are erased. The app stays installed.",
+                "Clear data", clear, danger=True)
 
     def uninstall_app(self, controller, package):
         def uninstall():
