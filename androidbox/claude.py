@@ -25,7 +25,7 @@ Code afterwards. To do it by hand instead, from any folder:
 
 Claude Code then gets tools for your running instances: list_instances, screenshot (returned inline, no
 file to save and read back), read_screen, ui_tree, wait_for_text, screen_record, tap, tap_text, swipe, type_text, key, install_apk, launch_app,
-stop_app, logcat and adb. Run `/mcp` in Claude Code to check it connected.
+stop_app, list_apps, current_app, open_url, clear_app_data, logcat and adb. Run `/mcp` in Claude Code to check it connected.
 
 ## As a command line
 
@@ -162,6 +162,10 @@ def screen_nodes(serial):
     return nodes
 
 
+def shell_quote(text):
+    return "'" + text.replace("'", "'\\''") + "'"
+
+
 def text_content(text):
     return {"type": "text", "text": text}
 
@@ -245,7 +249,12 @@ def tool_swipe(arguments):
 
 def tool_type_text(arguments):
     serial = resolve(arguments.get("instance"))
-    adb(serial, "shell", "input", "text", arguments["text"].replace(" ", "%s"))
+    typed = arguments["text"]
+    if not typed.isascii():
+        raise Problem("Android's input command can only type ASCII. Put the text in the app another way, "
+                      "for example through the clipboard or an intent")
+    # adb joins the arguments into one shell command, so & ; ( ) ' " $ and friends need quoting
+    adb(serial, "shell", "input", "text", shell_quote(typed.replace(" ", "%s")))
     return [text_content("typed")]
 
 
@@ -271,6 +280,31 @@ def tool_stop_app(arguments):
     serial = resolve(arguments.get("instance"))
     adb(serial, "shell", "am", "force-stop", arguments["package"])
     return [text_content("stopped")]
+
+
+def tool_list_apps(arguments):
+    serial = resolve(arguments.get("instance"))
+    flag = [] if arguments.get("system") else ["-3"]
+    out = adb(serial, "shell", "pm", "list", "packages", *flag)
+    return [text_content("\n".join(sorted(line.removeprefix("package:").strip() for line in out.splitlines()
+                                          if line.startswith("package:"))) or "none")]
+
+
+def tool_current_app(arguments):
+    serial = resolve(arguments.get("instance"))
+    out = adb(serial, "shell", "dumpsys window | grep mCurrentFocus")
+    return [text_content(out.strip() or "unknown")]
+
+
+def tool_open_url(arguments):
+    serial = resolve(arguments.get("instance"))
+    adb(serial, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", shell_quote(arguments["url"]))
+    return [text_content("opened")]
+
+
+def tool_clear_app_data(arguments):
+    serial = resolve(arguments.get("instance"))
+    return [text_content(adb(serial, "shell", "pm", "clear", arguments["package"]).strip())]
 
 
 def tool_logcat(arguments):
@@ -331,6 +365,18 @@ TOOLS = [
     {"name": "stop_app", "description": "Force-stop an app by its package name.",
      "inputSchema": {"type": "object", "required": ["package"], "properties": {
          **INSTANCE_PROPERTY, "package": {"type": "string"}}}},
+    {"name": "list_apps", "description": "List installed package names. Only apps the user installed unless "
+                                         "system is set.",
+     "inputSchema": {"type": "object", "properties": {**INSTANCE_PROPERTY, "system": {"type": "boolean"}}}},
+    {"name": "current_app", "description": "The window that has focus right now, which names the app in front.",
+     "inputSchema": {"type": "object", "properties": INSTANCE_PROPERTY}},
+    {"name": "open_url", "description": "Open a web address (or any link an app handles) on the device.",
+     "inputSchema": {"type": "object", "required": ["url"], "properties": {
+         **INSTANCE_PROPERTY, "url": {"type": "string"}}}},
+    {"name": "clear_app_data", "description": "Wipe an app's data and cache, as if freshly installed. "
+                                              "Destroys its saved state, so only when asked.",
+     "inputSchema": {"type": "object", "required": ["package"], "properties": {
+         **INSTANCE_PROPERTY, "package": {"type": "string"}}}},
     {"name": "logcat", "description": "Read the last lines of the device log.",
      "inputSchema": {"type": "object", "properties": {
          **INSTANCE_PROPERTY, "lines": {"type": "integer"}}}},
@@ -344,7 +390,8 @@ DISPATCH = {
     "ui_tree": tool_ui_tree, "wait_for_text": tool_wait_for_text, "screen_record": tool_screen_record,
     "tap": tool_tap, "tap_text": tool_tap_text, "swipe": tool_swipe, "type_text": tool_type_text, "key": tool_key,
     "install_apk": tool_install_apk, "launch_app": tool_launch_app, "stop_app": tool_stop_app,
-    "logcat": tool_logcat, "adb": tool_adb,
+    "list_apps": tool_list_apps, "current_app": tool_current_app, "open_url": tool_open_url,
+    "clear_app_data": tool_clear_app_data, "logcat": tool_logcat, "adb": tool_adb,
 }
 
 
@@ -496,7 +543,8 @@ description: Use for anything on an Android phone, emulator or app on this PC - 
 
 Androidbox runs Android instances on this PC with a private adb server (port {port}), so plain `adb devices`
 shows nothing. Use the `androidbox` MCP tools (mcp__androidbox__*): list_instances, read_screen, screenshot,
-tap_text, tap, swipe, type_text, key, wait_for_text, install_apk, launch_app, stop_app, logcat, screen_record.
+tap_text, tap, swipe, type_text, key, wait_for_text, install_apk, launch_app, stop_app, list_apps, current_app, open_url,
+clear_app_data, logcat, screen_record.
 Prefer read_screen over screenshot, and tap_text over tapping coordinates. If the tools are missing, check
 `/mcp`; if the user's instance is off, ask them to start it from the Androidbox window. From a shell, the same
 helper works: `python "{tool}" list`.
