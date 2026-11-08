@@ -87,6 +87,8 @@ jobs:
           $version = "${{ steps.version.outputs.version }}"
           $previous = gh release view --json tagName --jq .tagName 2>$null
           $range = if ($previous) { "$previous..HEAD" } else { "HEAD" }
-          $notes = (git log $range --no-merges --format="- %s" | Out-String).Trim()
+          $changes = (git log $range --no-merges --format="- %s" | Out-String).Trim()
+          # The app shows only the first 600 characters, and copies still running as DroidCore need this most
+          $notes = "Download and run the installer. It updates Androidbox, or DroidCore, in place and keeps your instances and settings.`n`n$changes"
           Set-Content -Path notes.md -Value $notes -Encoding utf8
           gh release create "v$version" "dist/Androidbox-Setup-$version.exe" --title "Androidbox $version" --notes-file notes.md --target $env:GITHUB_SHA
