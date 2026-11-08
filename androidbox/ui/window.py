@@ -263,6 +263,10 @@ class MainWindow(QMainWindow, ScreenActions):
         self.check_acceleration()
         self.check_for_updates()
         self.update_timer.start()
+        if self.prefs["seen_version"] and self.prefs["seen_version"] != VERSION and not paths.MIGRATED:
+            self.toast(f"Androidbox updated to {VERSION}. What's new is on the GitHub releases page", "good")
+        if self.prefs["seen_version"] != VERSION:
+            self.set_pref("seen_version", VERSION)
         if paths.MIGRATED:
             self.toast("Welcome back to Androidbox. Your instances and settings were moved over from DroidCore", "good")
         if profiles.sync_missing():
@@ -1447,6 +1451,12 @@ class MainWindow(QMainWindow, ScreenActions):
                        "good" if ok else "bad")
 
         self.run(lambda: controller.emulator.force_stop(package), finished)
+
+    def pick_apps(self, controller):
+        files, _ = QFileDialog.getOpenFileNames(self, "Install apps", str(documents()),
+                                                "Android apps (*.apk *.apkm *.xapk *.apks);;All files (*)")
+        if files:
+            controller.open_files(files)
 
     def stop_all_apps(self, controller):
         packages = sorted(controller.running)

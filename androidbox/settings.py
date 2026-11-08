@@ -7,6 +7,7 @@ LOCAL = {
     "check_updates": True,
     "auto_update": True,
     "skipped_version": "",
+    "seen_version": "",
     "claude_access": False,
     "close_to_tray": False,
     "boss_key": "",

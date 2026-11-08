@@ -1039,7 +1039,8 @@ class LibraryPage(Page):
         search.setMinimumWidth(220)
         stop_all = button("Stop all", lambda: host.stop_all_apps(controller), kind="secondary")
         stop_all.setVisible(bool(controller.running))
-        self.add(row(search, None, stop_all, refresh))
+        install = button("Install APK…", lambda: host.pick_apps(controller), kind="secondary")
+        self.add(row(search, None, stop_all, install, refresh))
         rows = []
         found = []
         # Running apps first, then by name

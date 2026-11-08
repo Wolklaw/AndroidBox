@@ -5,7 +5,7 @@ description: Use for anything on an Android phone, emulator or app on this PC - 
 
 Androidbox runs Android instances on this PC with a private adb server (port 5137), so plain `adb devices`
 shows nothing. Use the `androidbox` MCP tools (mcp__androidbox__*): list_instances, read_screen, screenshot,
-tap_text, tap, swipe, type_text, key, wait_for_text, install_apk, launch_app, stop_app, list_apps, current_app, open_url,
+tap_text, tap, swipe, type_text, key, wait_for_text, wait_for_app, install_apk, launch_app, stop_app, list_apps, current_app, open_url,
 clear_app_data, push_file, pull_file, rotate, logcat, screen_record.
 Prefer read_screen over screenshot, and tap_text over tapping coordinates. If the tools are missing, check
 `/mcp`; if the user's instance is off, ask them to start it from the Androidbox window. From a shell, the same

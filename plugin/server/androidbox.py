@@ -245,6 +245,18 @@ def tool_current_app(arguments):
     return [text_content(out.strip() or "unknown")]
 
 
+def tool_wait_for_app(arguments):
+    serial = resolve(arguments.get("instance"))
+    package = arguments["package"]
+    deadline = time.monotonic() + min(max(arguments.get("timeout", 20), 1), 120)
+    while True:
+        if package in adb(serial, "shell", "dumpsys window | grep mCurrentFocus", check=False):
+            return [text_content(f"{package} is in front")]
+        if time.monotonic() > deadline:
+            raise Problem(f"timed out waiting for {package} to come to the front")
+        time.sleep(1)
+
+
 def tool_open_url(arguments):
     serial = resolve(arguments.get("instance"))
     adb(serial, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", shell_quote(arguments["url"]))
@@ -341,6 +353,10 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {**INSTANCE_PROPERTY, "system": {"type": "boolean"}}}},
     {"name": "current_app", "description": "The window that has focus right now, which names the app in front.",
      "inputSchema": {"type": "object", "properties": INSTANCE_PROPERTY}},
+    {"name": "wait_for_app", "description": "Wait until an app (by package name) is the one in front.",
+     "inputSchema": {"type": "object", "required": ["package"], "properties": {
+         **INSTANCE_PROPERTY, "package": {"type": "string"},
+         "timeout": {"type": "integer", "description": "Seconds to wait, up to 120. Defaults to 20."}}}},
     {"name": "open_url", "description": "Open a web address (or any link an app handles) on the device.",
      "inputSchema": {"type": "object", "required": ["url"], "properties": {
          **INSTANCE_PROPERTY, "url": {"type": "string"}}}},
@@ -373,7 +389,7 @@ DISPATCH = {
     "ui_tree": tool_ui_tree, "wait_for_text": tool_wait_for_text, "screen_record": tool_screen_record,
     "tap": tool_tap, "tap_text": tool_tap_text, "swipe": tool_swipe, "type_text": tool_type_text, "key": tool_key,
     "install_apk": tool_install_apk, "launch_app": tool_launch_app, "stop_app": tool_stop_app,
-    "list_apps": tool_list_apps, "current_app": tool_current_app, "open_url": tool_open_url,
+    "list_apps": tool_list_apps, "current_app": tool_current_app, "wait_for_app": tool_wait_for_app, "open_url": tool_open_url,
     "clear_app_data": tool_clear_app_data, "push_file": tool_push_file, "pull_file": tool_pull_file,
     "rotate": tool_rotate, "logcat": tool_logcat, "adb": tool_adb,
 }
