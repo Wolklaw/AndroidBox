@@ -1025,7 +1025,11 @@ class LibraryPage(Page):
             return
         if controller.apps is None:
             self.add(card(label("Looking at what's installed…", "Muted")))
-            host.run(controller.emulator.apps, lambda found: self.loaded(controller, found), lambda _: None)
+            def look():
+                found = controller.emulator.apps()
+                return found, controller.emulator.running(found)
+
+            host.run(look, lambda result: self.loaded(controller, *result), lambda _: None)
             return
         refresh = button("Refresh", lambda: self.reload(controller), kind="secondary")
         self.add(row(refresh, None))
@@ -1038,14 +1042,19 @@ class LibraryPage(Page):
             rate.setMinimumWidth(210)
             rate.currentIndexChanged.connect(lambda _, p=package, box=rate: host.set_game_fps(controller, p,
                                                                                                box.currentData()))
+            alive = package in controller.running
             setup = "  ·  controls set up" if keymap.profile(package).exists() else ""
-            words = column(label(name, "Subheading"), label(package + setup, "Small"), spacing=2)
+            words = column(label(name, "Subheading"),
+                           label(package + setup + ("  ·  running" if alive else ""), "Small"), spacing=2)
             more = menu_button([
+                ("Force stop", lambda p=package: host.stop_app(controller, p)),
                 ("Create desktop shortcut", lambda p=package: host.shortcut_for(controller, p)),
                 (None, None),
                 ("Uninstall", lambda p=package: host.uninstall_app(controller, p)),
             ])
-            rows.append(row(avatar(instances.initials(name), COLORS["raised"]), words, None, rate,
+            actions = [button("Stop", lambda _=False, p=package: host.stop_app(controller, p), kind="secondary")] \
+                if alive else []
+            rows.append(row(avatar(instances.initials(name), COLORS["raised"]), words, None, rate, *actions,
                             button("Open", lambda _=False, p=package: self.open_app(controller, p)), more,
                             spacing=10))
         if rows:
@@ -1054,8 +1063,9 @@ class LibraryPage(Page):
             self.add(card(label("Nothing installed yet. Get apps from Google Play, or drop an APK file on the screen.",
                                 "Muted", wrap=True)))
 
-    def loaded(self, controller, found):
+    def loaded(self, controller, found, running):
         controller.apps = found
+        controller.running = running
         if self.host.page == "library" and self.host.active() is controller:
             self.refresh(controller)
 

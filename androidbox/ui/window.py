@@ -1435,6 +1435,17 @@ class MainWindow(QMainWindow, ScreenActions):
         if controller.package == package:
             controller.refresh_frame_rate()
 
+    def stop_app(self, controller, package):
+        def finished(ok):
+            if ok:
+                controller.running.discard(package)
+                if self.page == "library" and self.active() is controller:
+                    self.show_page("library")
+            self.toast(f"Stopped {app_name(package)}" if ok else f"Couldn't stop {app_name(package)}",
+                       "good" if ok else "bad")
+
+        self.run(lambda: controller.emulator.force_stop(package), finished)
+
     def uninstall_app(self, controller, package):
         def uninstall():
             def finished(ok):

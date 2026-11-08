@@ -398,6 +398,12 @@ def run(command, arguments):
 
 
 def main():
+    # Windows consoles default to cp1252, which can't print Persian, Arabic, CJK or emoji labels from the screen
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
     if len(sys.argv) < 2:
         fail("commands: list shot ui tap tap-text swipe text key install launch stop-app logcat adb mcp")
     command, arguments = sys.argv[1], sys.argv[2:]

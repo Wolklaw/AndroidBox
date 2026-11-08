@@ -60,6 +60,7 @@ class Controller(QObject):
         self.last_clip = None
         self.skip_clip = True
         self.apps = None
+        self.running = set()
         self.pending_launch = None
         self.applied_fps = None
         self.usage = None

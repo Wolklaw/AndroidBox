@@ -370,6 +370,19 @@ class Emulator:
         lines = [line for line in output.splitlines() if line.startswith("package:")]
         return sorted(line.removeprefix("package:").strip() for line in lines)
 
+    def running(self, packages):
+        """Which of these packages have a process alive right now (an app's services run as package:name)"""
+        code, output = self.adb("shell", "ps", "-A", "-o", "NAME", timeout=15)
+        if code != 0:
+            return set()
+        names = {line.strip().split(":")[0] for line in output.splitlines()}
+        return {package for package in packages if package in names}
+
+    def force_stop(self, package):
+        """Ends the app and its services without touching its data"""
+        code, _ = self.adb("shell", "am", "force-stop", package, timeout=15)
+        return code == 0
+
     def uninstall(self, package):
         code, output = self.adb("uninstall", package, timeout=120)
         return code == 0 and "Success" in output
