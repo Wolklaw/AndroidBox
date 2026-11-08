@@ -1028,7 +1028,7 @@ class LibraryPage(Page):
             self.add(card(label("Looking at what's installed…", "Muted")))
             def look():
                 found = controller.emulator.apps()
-                return found, controller.emulator.running(found)
+                return found, controller.emulator.running_apps(found)
 
             host.run(look, lambda result: self.loaded(controller, *result), lambda _: None)
             return

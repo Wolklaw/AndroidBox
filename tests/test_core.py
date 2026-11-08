@@ -66,6 +66,14 @@ class Helper(unittest.TestCase):
             self.helper["tool_type_text"]({"text": "سلام"})
 
 
+class EmulatorApi(unittest.TestCase):
+    def test_running_takes_no_arguments(self):
+        # Once shadowed by an app-listing method of the same name, which broke every status check
+        import inspect
+        self.assertEqual(list(inspect.signature(emulator.Emulator.running).parameters), ["self"])
+        self.assertTrue(hasattr(emulator.Emulator, "running_apps"))
+
+
 class Paths(unittest.TestCase):
     def test_droidcore_folder_is_renamed_back(self):
         local = Path(tempfile.mkdtemp())

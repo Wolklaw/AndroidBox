@@ -370,7 +370,7 @@ class Emulator:
         lines = [line for line in output.splitlines() if line.startswith("package:")]
         return sorted(line.removeprefix("package:").strip() for line in lines)
 
-    def running(self, packages):
+    def running_apps(self, packages):
         """Which of these packages have a process alive right now (an app's services run as package:name)"""
         code, output = self.adb("shell", "ps", "-A", "-o", "NAME", timeout=15)
         if code != 0:
