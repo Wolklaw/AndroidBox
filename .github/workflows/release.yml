@@ -89,6 +89,6 @@ jobs:
           $range = if ($previous) { "$previous..HEAD" } else { "HEAD" }
           $changes = (git log $range --no-merges --format="- %s" | Out-String).Trim()
           # The app shows only the first 600 characters, and copies still running as DroidCore need this most
-          $notes = "Download and run the installer. It updates Androidbox, or DroidCore, in place and keeps your instances and settings.`n`n$changes"
+          $notes = "Press Download, then open the installer from the page. Your instances and settings are kept.`n`n$changes"
           Set-Content -Path notes.md -Value $notes -Encoding utf8
           gh release create "v$version" "dist/Androidbox-Setup-$version.exe" --title "Androidbox $version" --notes-file notes.md --target $env:GITHUB_SHA
