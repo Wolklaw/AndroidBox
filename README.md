@@ -51,7 +51,7 @@ apps on a Windows PC? Here is exactly what Androidbox does, and where you can ch
 | | Androidbox | Where to check |
 |---|---|---|
 | Ads and promoted apps | None | The source is in this repository |
-| Account | Not needed | Nothing in the app asks for one |
+| Account | None for Androidbox itself. Google Play asks for your Google account, as on any Android phone | Nothing in the app asks for one |
 | Servers it contacts | `dl.google.com` for Android downloads, GitHub to look for updates, Mozilla only when you install Firefox from the app, and any download mirror you add yourself | Search the source for web addresses |
 | Android engine | Google's official Android Emulator, the one inside Android Studio | [How it works](#how-it-works) |
 | Google Play | The real Play Store, on Android 16 and 11 | [Android 16 with Google Play](#android-16-with-google-play) |
