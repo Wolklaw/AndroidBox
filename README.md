@@ -125,6 +125,17 @@ rounds, which suits idle and farming games. **Edit steps** shows each tap, swipe
 you can change how long it waits or remove it. Give a macro a hotkey, and turn on **Works in any
 program** to fire it while another program has the keyboard.
 
+**Wait steps** make a macro wait for the game instead of guessing how long it takes. In **Edit steps**, choose
+**Wait after** on any step (or **Add a wait step at the start**) and pick one of two things to wait for:
+
+- **The marked area looks the way it does now.** Drag a box over something that only appears when the game
+  is ready, such as a button or a title. The macro carries on once that part of the screen matches again.
+  **Check now** on the step tells you whether it matches at this moment.
+- **The screen stops changing.** Good for loading screens, with nothing to mark.
+
+Each wait step has a time limit, after which the macro either stops with a message or carries on anyway.
+Wait steps only compare colours in the area you marked, so they don't read text or recognise pictures.
+
 ### Profiles and sync
 
 A profile keeps your game control layouts, macros, instance presets and preferences together. Make one

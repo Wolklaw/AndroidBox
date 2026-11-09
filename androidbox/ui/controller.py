@@ -492,7 +492,9 @@ class Controller(QObject):
             return
         self.stop_macro()
         self.playing = macro["name"]
-        self.player = macros.Player(self.bridge, macro, loops, on_done=lambda: on_main_thread(self.macro_done))
+        self.player = macros.Player(
+            self.bridge, macro, loops, on_done=lambda: on_main_thread(self.macro_done),
+            on_note=lambda text: on_main_thread(lambda: self.notify.emit(text, "bad")))
         self.macros_changed.emit()
 
     def stop_macro(self):

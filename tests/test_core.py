@@ -11,7 +11,11 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("ANDROIDBOX_HOME", tempfile.mkdtemp(prefix="androidbox-test-"))
 os.environ.setdefault("LOCALAPPDATA", tempfile.mkdtemp(prefix="androidbox-local-"))
 
-from androidbox import claude, emulator, instances, updates  # noqa: E402
+import base64  # noqa: E402
+import threading  # noqa: E402
+
+from androidbox import claude, emulator, instances, macros, updates, vision  # noqa: E402
+from androidbox.proto import emulator_controller_pb2 as pb  # noqa: E402
 
 
 def load_helper():
@@ -121,6 +125,168 @@ class AppsPage(unittest.TestCase):
         page.findChild(QLineEdit).setText("clash")
         self.assertEqual(packages(), ["com.supercell.clashofclans"])
         app.processEvents()
+
+
+def solid(colour, width=40, height=80):
+    return bytes(colour) * (width * height), width, height
+
+
+class FakeScreen:
+    """Stands in for the emulator: shows each picture in turn and keeps the last one"""
+
+    def __init__(self, *pictures):
+        self.pictures = list(pictures)
+        self.sent = []
+
+    def pixels(self, width, height):
+        return self.pictures.pop(0) if len(self.pictures) > 1 else self.pictures[0]
+
+    def replay(self, payload):
+        self.sent.append(payload)
+
+
+def tap_events(at):
+    down = pb.InputEvent(touch_event=pb.TouchEvent(touches=[pb.Touch(x=10, y=10, identifier=0, pressure=1)]))
+    up = pb.InputEvent(touch_event=pb.TouchEvent(touches=[pb.Touch(x=10, y=10, identifier=0, pressure=0)]))
+    return [[at, base64.b64encode(down.SerializeToString()).decode()],
+            [at + 0.01, base64.b64encode(up.SerializeToString()).decode()]]
+
+
+def two_tap_macro():
+    return {"name": "t", "display": [40, 80], "speed": 1.0, "gap": 0, "duration": 0.31,
+            "events": tap_events(0.0) + tap_events(0.3)}
+
+
+class Vision(unittest.TestCase):
+    def test_same_screen_has_no_difference_and_black_against_white_is_total(self):
+        black, white = solid((0, 0, 0)), solid((255, 255, 255))
+        a, b = vision.sample(*black), vision.sample(*white)
+        self.assertEqual(vision.difference(a, vision.sample(*black)), 0)
+        self.assertEqual(vision.difference(a, b), 1.0)
+
+    def test_region_only_looks_inside_itself(self):
+        width, height = 40, 80
+        frame = bytearray(bytes((0, 0, 0)) * (width * height))
+        for y in range(height // 2):
+            for x in range(width):
+                frame[(y * width + x) * 3:(y * width + x) * 3 + 3] = bytes((255, 255, 255))
+        top = vision.sample(bytes(frame), width, height, (0, 0, 1, 0.4))
+        bottom = vision.sample(bytes(frame), width, height, (0, 0.6, 1, 0.4))
+        self.assertEqual(vision.difference(top, bottom), 1.0)
+
+    def test_a_four_byte_pixel_frame_reads_the_same(self):
+        rgb, rgba = solid((10, 20, 30)), (bytes((10, 20, 30, 255)) * (40 * 80), 40, 80)
+        self.assertEqual(vision.sample(*rgb), vision.sample(*rgba))
+
+
+class WaitSteps(unittest.TestCase):
+    def area_step(self, timeout=30, then="stop"):
+        reference = vision.encode(vision.sample(*solid((200, 0, 0))))
+        return macros.new_step("area", (0, 0, 1, 1), reference, timeout=timeout, then=then)
+
+    def test_waits_until_the_area_matches(self):
+        screen = FakeScreen(solid((0, 0, 0)), solid((0, 0, 0)), solid((200, 0, 0)))
+        result = macros.wait_for(screen, [40, 80], self.area_step(), threading.Event(), poll=0.001)
+        self.assertTrue(result)
+        self.assertEqual(screen.pictures, [solid((200, 0, 0))])
+
+    def test_times_out_when_it_never_matches(self):
+        result = macros.wait_for(FakeScreen(solid((0, 0, 0))), [40, 80], self.area_step(timeout=0.05),
+                                 threading.Event(), poll=0.005)
+        self.assertIs(result, False)
+
+    def test_stopping_playback_ends_the_wait(self):
+        stopped = threading.Event()
+        stopped.set()
+        self.assertIsNone(macros.wait_for(FakeScreen(solid((0, 0, 0))), [40, 80], self.area_step(), stopped))
+
+    def test_still_needs_the_screen_to_stop_moving(self):
+        moving = [solid((n * 40, 0, 0)) for n in range(5)]
+        step = macros.new_step("still", hold=0.03, timeout=5)
+        screen = FakeScreen(*moving, solid((9, 9, 9)))
+        self.assertTrue(macros.wait_for(screen, [40, 80], step, threading.Event(), poll=0.01))
+        self.assertEqual(screen.pictures, [solid((9, 9, 9))])
+
+    def test_a_screen_that_never_settles_times_out(self):
+        class Flicker(FakeScreen):
+            count = 0
+
+            def pixels(self, width, height):
+                self.count += 1
+                return solid((255 * (self.count % 2),) * 3)
+
+        step = macros.new_step("still", hold=0.5, timeout=0.05)
+        self.assertIs(macros.wait_for(Flicker(solid((0, 0, 0))), [40, 80], step, threading.Event(), poll=0.005),
+                      False)
+
+    def test_an_unreadable_screen_is_not_a_match(self):
+        class Broken:
+            def pixels(self, width, height):
+                raise OSError("emulator gone")
+
+        self.assertIs(macros.wait_for(Broken(), [40, 80], self.area_step(timeout=0.03), threading.Event(),
+                                      poll=0.005), False)
+
+
+class MacroEditing(unittest.TestCase):
+    def test_a_step_goes_after_the_action_it_was_asked_for(self):
+        macro = macros.add_step(two_tap_macro(), 0, macros.new_step("still"))
+        found = macros.actions(macro)
+        self.assertEqual(len(found), 3)
+        self.assertIn("step", found[1])
+        self.assertEqual([found[0]["label"].split()[0], found[2]["label"].split()[0]], ["Tap", "Tap"])
+        self.assertEqual(found[2]["wait"], 0.29)
+
+    def test_a_step_at_the_start_comes_first(self):
+        found = macros.actions(macros.add_step(two_tap_macro(), -1, macros.new_step("still")))
+        self.assertIn("step", found[0])
+
+    def test_removing_a_step_leaves_the_taps_alone(self):
+        macro = macros.add_step(two_tap_macro(), 0, macros.new_step("still"))
+        macro = macros.remove_action(macro, 1)
+        self.assertEqual([action["label"].split()[0] for action in macros.actions(macro)], ["Tap", "Tap"])
+        self.assertEqual(len(macro["events"]), 4)
+
+    def test_describe_says_what_the_step_waits_for(self):
+        self.assertIn("stops changing", macros.describe_step(macros.new_step("still")))
+        self.assertIn("no time limit", macros.describe_step(macros.new_step("still", timeout=0)))
+
+
+class PlayerWithSteps(unittest.TestCase):
+    def play(self, screen, macro):
+        done, notes = threading.Event(), []
+        macros.Player(screen, macro, on_done=done.set, on_note=notes.append)
+        self.assertTrue(done.wait(10))
+        return notes
+
+    def step_macro(self, then="stop", timeout=0.15):
+        reference = vision.encode(vision.sample(*solid((200, 0, 0))))
+        step = macros.new_step("area", (0, 0, 1, 1), reference, timeout=timeout, then=then)
+        return macros.add_step(two_tap_macro(), 0, step)
+
+    def test_the_second_tap_waits_for_the_screen(self):
+        screen = FakeScreen(*([solid((0, 0, 0))] * 2), solid((200, 0, 0)))
+        notes = self.play(screen, self.step_macro(timeout=10))
+        self.assertEqual(notes, [])
+        self.assertEqual(len(screen.sent), 4)
+
+    def test_a_missed_wait_stops_the_macro_and_says_so(self):
+        screen = FakeScreen(solid((0, 0, 0)))
+        notes = self.play(screen, self.step_macro())
+        self.assertEqual(len(screen.sent), 2)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("didn't happen in time", notes[0])
+
+    def test_carry_on_anyway_plays_everything(self):
+        screen = FakeScreen(solid((0, 0, 0)))
+        notes = self.play(screen, self.step_macro(then="go"))
+        self.assertEqual(len(screen.sent), 4)
+        self.assertEqual(notes, [])
+
+    def test_macros_without_steps_play_as_before(self):
+        screen = FakeScreen(solid((0, 0, 0)))
+        self.play(screen, two_tap_macro())
+        self.assertEqual(len(screen.sent), 4)
 
 
 if __name__ == "__main__":

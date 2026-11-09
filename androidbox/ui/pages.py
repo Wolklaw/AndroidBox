@@ -4,12 +4,12 @@ import subprocess
 import time
 
 from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QPainterPath
+from PySide6.QtGui import QColor, QKeySequence, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout,
                                QKeySequenceEdit, QLabel, QLineEdit, QMenu, QPlainTextEdit, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import VERSION, claude, installer, instances, keymap, macros, paths, profiles, system
+from .. import VERSION, claude, installer, instances, keymap, macros, paths, profiles, system, vision
 from .controller import plural
 from .inspector import Inspector
 from .phone import PhoneView
@@ -938,10 +938,13 @@ class MacroEditor(Modal):
 
     def __init__(self, parent, controller, name):
         super().__init__(parent, f"Edit {name}",
-                         "Each step is a tap, swipe, hold or key press. Change how long it waits, or remove it.",
+                         "Each step is a tap, swipe, hold, key press or wait. Change how long it waits, or remove it. "
+                         "A wait step holds the macro until the screen is ready, so it keeps working when a game "
+                         "loads slowly.",
                          width=700)
         self.controller = controller
         self.name = name
+        self.add(row(button("Add a wait step at the start", lambda: self.add_wait(-1), kind="secondary"), None))
         holder = QWidget()
         self.rows = QVBoxLayout(holder)
         self.rows.setContentsMargins(0, 0, 8, 0)
@@ -979,7 +982,16 @@ class MacroEditor(Modal):
             wait.editingFinished.connect(lambda n=number, box=wait: self.change_wait(n, box))
             step = label(f"{number + 1}", "Small")
             step.setFixedWidth(26)
-            self.rows.addWidget(row(step, label(action["label"]), None, label("Waits", "Small"), wait,
+            extra = []
+            if "step" in action:
+                if action["step"].get("wait") != "still":
+                    status = label("", "Small")
+                    extra = [status, button("Check now", lambda _=False, a=action, s=status: self.check(a, s),
+                                            kind="secondary")]
+            else:
+                extra = [button("Wait after", lambda _=False, n=number: self.add_wait(n), kind="secondary")]
+            self.rows.addWidget(row(step, label(action["label"], wrap=True), None, label("Waits", "Small"), wait,
+                                    *extra,
                                     button("Remove", lambda _=False, n=number: self.remove(n), kind="secondary"),
                                     spacing=10))
 
@@ -995,6 +1007,155 @@ class MacroEditor(Modal):
 
     def remove(self, number):
         self.save(macros.remove_action(self.macro(), number))
+
+    def display(self):
+        instance = self.controller.instance
+        return self.macro().get("display") or [instance.width, instance.height]
+
+    def ready(self):
+        bridge, instance = self.controller.bridge, self.controller.instance
+        if not bridge:
+            self.controller.notify.emit("Start Android to add or check wait steps", "text")
+            return None
+        if list(self.display()) != [instance.width, instance.height]:
+            self.controller.notify.emit("This macro was recorded on a different display size than this instance",
+                                        "bad")
+            return None
+        return bridge
+
+    def add_wait(self, after):
+        bridge = self.ready()
+        if not bridge:
+            return
+        pixmap = QPixmap()
+        try:
+            pixmap.loadFromData(bridge.screenshot())
+        except Exception:
+            pixmap = QPixmap()
+        if pixmap.isNull():
+            self.controller.notify.emit("Couldn't read the screen", "bad")
+            return
+        WaitStepDialog(self.parent(), bridge, self.display(), pixmap,
+                       lambda step: self.save(macros.add_step(self.macro(), after, step))).open()
+
+    def check(self, action, status):
+        bridge = self.ready()
+        if not bridge:
+            return
+        gap = macros.distance(bridge, self.display(), action["step"])
+        if gap is None:
+            status.setText("Can't read the screen")
+        elif gap <= action["step"].get("tolerance", 0.08):
+            status.setText("Matches now")
+        else:
+            status.setText(f"Doesn't match ({gap * 100:.0f}% different)")
+
+
+class AreaPicker(QWidget):
+    """A screenshot to drag a rectangle across. The area is kept as fractions of the screen"""
+
+    def __init__(self, pixmap):
+        super().__init__()
+        self.pixmap = pixmap
+        self.region = None
+        self.anchor = None
+        self.setFixedSize(640, 330)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def image_rect(self):
+        scaled = self.pixmap.size().scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+        return QRectF((self.width() - scaled.width()) / 2, (self.height() - scaled.height()) / 2,
+                      scaled.width(), scaled.height())
+
+    def fraction(self, point):
+        rect = self.image_rect()
+        return (min(max((point.x() - rect.left()) / rect.width(), 0.0), 1.0),
+                min(max((point.y() - rect.top()) / rect.height(), 0.0), 1.0))
+
+    def chosen(self):
+        return self.region if self.region and self.region[2] >= 0.02 and self.region[3] >= 0.02 else None
+
+    def mousePressEvent(self, event):
+        self.anchor = self.fraction(event.position())
+        self.region = (*self.anchor, 0.0, 0.0)
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        if self.anchor:
+            x, y = self.fraction(event.position())
+            self.region = (min(x, self.anchor[0]), min(y, self.anchor[1]),
+                           abs(x - self.anchor[0]), abs(y - self.anchor[1]))
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        self.anchor = None
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        rect = self.image_rect()
+        painter.drawPixmap(rect.toRect(), self.pixmap)
+        if self.region:
+            left, top, span_x, span_y = self.region
+            box = QRectF(rect.left() + left * rect.width(), rect.top() + top * rect.height(),
+                         span_x * rect.width(), span_y * rect.height())
+            accent = QColor(COLORS["accent"])
+            painter.setPen(QPen(accent, 2))
+            fill = QColor(accent)
+            fill.setAlpha(60)
+            painter.setBrush(fill)
+            painter.drawRect(box)
+
+
+class WaitStepDialog(Modal):
+    def __init__(self, parent, bridge, display, pixmap, on_add):
+        super().__init__(parent, "Add a wait step", "Pick what the macro should wait for before it carries on.",
+                         width=700)
+        self.bridge = bridge
+        self.display = display
+        self.on_add = on_add
+        self.kind = choice([("The marked area looks the way it does now", "area"),
+                            ("The screen stops changing (loading screens)", "still")], "area")
+        self.kind.currentIndexChanged.connect(self.kind_changed)
+        self.picker = AreaPicker(pixmap)
+        self.hint = label("Drag a box over something that only appears when the game is ready, like a button or "
+                          "a title. This is the screen as it is right now.", "Small", wrap=True)
+        self.tolerance = choice([(f"{text} match", value) for value, text in vision.TOLERANCES], 0.08)
+        self.hold = choice([(f"Still for {value:g} s", value) for value in macros.HOLDS], 1.0)
+        self.timeout = choice([(text, value) for value, text in macros.TIMEOUTS], 30)
+        self.then = choice([("Stop the macro", "stop"), ("Carry on anyway", "go")], "stop")
+        self.add(self.kind)
+        self.add(self.picker)
+        self.add(self.hint)
+        self.add(row(label("Match", "Small"), self.tolerance, self.hold, None, spacing=10))
+        self.add(row(label("Give up after", "Small"), self.timeout, label("Then", "Small"), self.then, None,
+                     spacing=10))
+        self.cancel()
+        self.action("Add step", self.add_step)
+        self.kind_changed()
+
+    def kind_changed(self):
+        area = self.kind.currentData() == "area"
+        for widget in (self.picker, self.hint, self.tolerance):
+            widget.setVisible(area)
+        self.hold.setVisible(not area)
+
+    def add_step(self):
+        timeout, then = self.timeout.currentData(), self.then.currentData()
+        if self.kind.currentData() == "still":
+            self.on_add(macros.new_step("still", timeout=timeout, hold=self.hold.currentData(), then=then))
+            return True
+        region = self.picker.chosen()
+        if not region:
+            self.hint.setText("Drag a box over the part of the screen to wait for first.")
+            return False
+        region = vision.clean_region(region)
+        seen = macros.look(self.bridge, self.display, {"wait": "area", "region": region})
+        if seen is None:
+            self.hint.setText("Couldn't read the screen. Try again.")
+            return False
+        self.on_add(macros.new_step("area", region, vision.encode(seen), self.tolerance.currentData(), timeout,
+                                    then=then))
+        return True
 
 
 GAME_FRAME_RATES = (30, 60, 90, 120, 144, 240)

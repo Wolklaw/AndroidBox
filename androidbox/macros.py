@@ -4,7 +4,7 @@ import re
 import threading
 import time
 
-from . import profiles
+from . import profiles, vision
 from .proto import emulator_controller_pb2 as pb
 
 SPEEDS = (0.5, 1.0, 2.0, 4.0)
@@ -13,6 +13,11 @@ LOOPS = ((1, "Once"), (2, "2 times"), (5, "5 times"), (10, "10 times"), (25, "25
 GAPS = (0.0, 0.3, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 TAP_SECONDS = 0.35
 TAP_TRAVEL = 40
+POLL = 0.3
+LOOK_WIDTH = 160
+STILL_LIMIT = 0.012
+TIMEOUTS = ((10, "10 seconds"), (30, "30 seconds"), (60, "1 minute"), (300, "5 minutes"), (0, "No limit"))
+HOLDS = (0.5, 1.0, 2.0, 3.0)
 
 cache = {}
 
@@ -97,6 +102,9 @@ def actions(macro):
     current = None
     keys = {}
     for number, (offset, payload) in enumerate(macro["events"]):
+        if isinstance(payload, dict):
+            found.append({"start": offset, "end": offset, "events": [number], "step": payload})
+            continue
         event = decode(payload)
         kind = event.WhichOneof("type")
         if kind == "touch_event":
@@ -133,7 +141,16 @@ def actions(macro):
     return found
 
 
+def describe_step(step):
+    limit = f"up to {step['timeout']:g} s" if step.get("timeout") else "no time limit"
+    if step.get("wait") == "still":
+        return f"Wait until the screen stops changing for {step.get('hold', 1.0):g} s ({limit})"
+    return f"Wait until the marked area looks the same ({limit})"
+
+
 def describe(action):
+    if "step" in action:
+        return describe_step(action["step"])
     if "key" in action:
         return f"Key {action['key'] or '?'}"
     if "points" not in action:
@@ -146,6 +163,78 @@ def describe(action):
     if seconds >= TAP_SECONDS:
         return f"Hold at {x1}, {y1} for {seconds:.1f}s"
     return f"Tap at {x1}, {y1}"
+
+
+def new_step(kind, region=None, reference=None, tolerance=0.08, timeout=30, hold=1.0, then="stop"):
+    step = {"wait": kind, "timeout": timeout, "then": then}
+    if kind == "area":
+        step.update(region=vision.clean_region(region), reference=reference, tolerance=tolerance)
+    else:
+        step["hold"] = hold
+    return step
+
+
+def add_step(macro, after, step):
+    """Puts a wait step after the given action (-1 for the very start)"""
+    found = actions(macro)
+    if after < 0 or not found:
+        index, offset = 0, 0.0
+    else:
+        index, offset = max(found[after]["events"]) + 1, found[after]["end"]
+    macro["events"].insert(index, [offset, step])
+    return finish(macro)
+
+
+def update_step(macro, number, **changes):
+    action = actions(macro)[number]
+    macro["events"][action["events"][0]][1].update(changes)
+    return macro
+
+
+def look(bridge, display, step):
+    """What the screen looks like right now for this step, or None if the emulator didn't answer"""
+    width = LOOK_WIDTH
+    height = max(1, round(width * display[1] / display[0])) if display and display[0] else width * 2
+    try:
+        frame, width, height = bridge.pixels(width, height)
+    except Exception:
+        return None
+    if step.get("wait") == "still":
+        return vision.sample(frame, width, height, vision.WHOLE_SCREEN, vision.STILL_GRID)
+    return vision.sample(frame, width, height, step["region"])
+
+
+def distance(bridge, display, step):
+    """How different the marked area is from when the step was made (0 to 1), or None if it can't be read"""
+    seen = look(bridge, display, step)
+    return None if seen is None else vision.difference(seen, vision.decode(step["reference"]))
+
+
+def wait_for(bridge, display, step, stopped, poll=POLL, clock=time.monotonic):
+    """True once the step's wait is over, False if it ran out of time, None if playback was stopped"""
+    timeout = step.get("timeout", 30)
+    deadline = clock() + timeout if timeout else None
+    area = step.get("wait") != "still"
+    reference = vision.decode(step["reference"]) if area else None
+    previous = calm_since = None
+    while not stopped.is_set():
+        seen = look(bridge, display, step)
+        now = clock()
+        if seen is not None:
+            if area:
+                if vision.difference(seen, reference) <= step.get("tolerance", 0.08):
+                    return True
+            elif previous is not None and vision.difference(seen, previous) <= STILL_LIMIT:
+                calm_since = now if calm_since is None else calm_since
+                if now - calm_since >= step.get("hold", 1.0):
+                    return True
+            else:
+                calm_since = None
+            previous = seen
+        if deadline is not None and now >= deadline:
+            return False
+        stopped.wait(poll)
+    return None
 
 
 def finish(macro):
@@ -175,13 +264,16 @@ def set_wait(macro, number, seconds):
 
 
 class Player:
-    def __init__(self, bridge, macro, loops=1, on_done=None):
+    def __init__(self, bridge, macro, loops=1, on_done=None, on_note=None):
         self.bridge = bridge
         speed = macro.get("speed") or 1.0
-        self.events = [(offset / speed, base64.b64decode(payload)) for offset, payload in macro["events"]]
+        self.display = macro.get("display")
+        self.events = [(offset / speed, payload if isinstance(payload, dict) else base64.b64decode(payload))
+                       for offset, payload in macro["events"]]
         self.gap = macro.get("gap", 0.3)
         self.loops = loops
         self.on_done = on_done
+        self.on_note = on_note
         self.stopped = threading.Event()
         threading.Thread(target=self.play, daemon=True).start()
 
@@ -189,9 +281,20 @@ class Player:
         played = 0
         while not self.stopped.is_set() and (self.loops == 0 or played < self.loops):
             start = time.monotonic()
+            # Time spent in wait steps, so the events after them keep their spacing
+            delay = 0.0
             for offset, payload in self.events:
-                if self.stopped.wait(max(0.0, start + offset - time.monotonic())):
+                if self.stopped.wait(max(0.0, start + delay + offset - time.monotonic())):
                     break
+                if isinstance(payload, dict):
+                    before = time.monotonic()
+                    result = wait_for(self.bridge, self.display, payload, self.stopped)
+                    delay += time.monotonic() - before
+                    if result is False and payload.get("then", "stop") == "stop":
+                        if self.on_note:
+                            self.on_note(f"Macro stopped: {describe_step(payload).lower()} didn't happen in time")
+                        self.stopped.set()
+                    continue
                 self.bridge.replay(payload)
             played += 1
             self.stopped.wait(self.gap)
