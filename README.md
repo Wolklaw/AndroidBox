@@ -45,22 +45,27 @@ stores stays in one folder you can delete.
 
 ## Why Androidbox
 
-Looking for a **BlueStacks, LDPlayer, Nox or MuMu alternative** without the ads? Androidbox is built for
-that.
+Looking for an ad-free alternative to BlueStacks, LDPlayer, Nox or MuMu for playing mobile games and running
+apps on a Windows PC? Here is exactly what Androidbox does, and where you can check each point yourself.
 
-| | Androidbox | Typical Android emulator for PC |
+| | Androidbox | Where to check |
 |---|---|---|
-| Ads and promoted apps | None | Often built in |
-| Account to sign up for | No | Often required |
-| Telemetry | None | Often on |
-| Source code | Open, MIT license | Usually closed |
-| Android engine | Google's official emulator | Their own modified engine |
-| Google Play | Yes, the real Play Store | Varies |
-| Root detection in banking apps and games | Passes, it can't be rooted | Often trips it |
-| Cost | Free | Free with ads, or paid |
+| Ads and promoted apps | None | The source is in this repository |
+| Account | Not needed | Nothing in the app asks for one |
+| Servers it contacts | `dl.google.com` for Android downloads, GitHub to look for updates, Mozilla only when you install Firefox from the app, and any download mirror you add yourself | Search the source for web addresses |
+| Android engine | Google's official Android Emulator, the one inside Android Studio | [How it works](#how-it-works) |
+| Google Play | The real Play Store, on Android 16 and 11 | [Android 16 with Google Play](#android-16-with-google-play) |
+| Source code | Open, MIT license | [LICENSE](LICENSE) |
+| Cost | Free | |
 
-It's aimed at playing mobile games and running apps on a Windows PC: key mapping and controller
-support, macros, several Androids at once, and an experimental Android 4.1 image for OUYA and GameStick games.
+Other emulators publish their own privacy policies, so you can compare:
+[BlueStacks](https://www.bluestacks.com/terms-and-privacy.html),
+[LDPlayer](https://ldplayer.net/other/privacy_policy.html),
+[Nox](https://www.bignox.com/privacy-policy) and
+[MuMu](https://www.mumuplayer.com/privacy-policy.html).
+
+It's aimed at playing mobile games and running apps on a PC: key mapping and controller support, macros,
+several Androids at once, and an experimental Android 4.1 image for OUYA and GameStick games.
 
 ## Getting started
 
