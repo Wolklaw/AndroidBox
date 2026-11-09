@@ -43,6 +43,25 @@ stores stays in one folder you can delete.
 
 <p align="center"><img src="docs/screen.png" alt="Androidbox running Android 16, with the inspector open beside the screen" width="820"></p>
 
+## Why Androidbox
+
+Looking for a **BlueStacks, LDPlayer, Nox or MuMu alternative** without the ads? Androidbox is built for
+that.
+
+| | Androidbox | Typical Android emulator for PC |
+|---|---|---|
+| Ads and promoted apps | None | Often built in |
+| Account to sign up for | No | Often required |
+| Telemetry | None | Often on |
+| Source code | Open, MIT license | Usually closed |
+| Android engine | Google's official emulator | Their own modified engine |
+| Google Play | Yes, the real Play Store | Varies |
+| Root detection in banking apps and games | Passes, it can't be rooted | Often trips it |
+| Cost | Free | Free with ads, or paid |
+
+It's aimed at playing mobile games and running apps on a Windows PC: key mapping and controller
+support, macros, several Androids at once, and an experimental Android 4.1 image for OUYA and GameStick games.
+
 ## Getting started
 
 **You need:**
