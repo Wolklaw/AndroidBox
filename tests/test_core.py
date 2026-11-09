@@ -13,6 +13,7 @@ os.environ.setdefault("LOCALAPPDATA", tempfile.mkdtemp(prefix="androidbox-local-
 
 import base64  # noqa: E402
 import threading  # noqa: E402
+import time  # noqa: E402
 
 from androidbox import claude, emulator, instances, macros, updates, vision  # noqa: E402
 from androidbox.proto import emulator_controller_pb2 as pb  # noqa: E402
@@ -137,6 +138,10 @@ class FakeScreen:
     def __init__(self, *pictures):
         self.pictures = list(pictures)
         self.sent = []
+        self.touches = []
+
+    def touch(self, *touches):
+        self.touches.extend(touches)
 
     def pixels(self, width, height):
         return self.pictures.pop(0) if len(self.pictures) > 1 else self.pictures[0]
@@ -287,6 +292,189 @@ class PlayerWithSteps(unittest.TestCase):
         screen = FakeScreen(solid((0, 0, 0)))
         self.play(screen, two_tap_macro())
         self.assertEqual(len(screen.sent), 4)
+
+
+def three_tap_macro():
+    macro = two_tap_macro()
+    macro["events"] += tap_events(0.6)
+    return macro
+
+
+def red_step(kind, **options):
+    reference = vision.encode(vision.sample(*solid((200, 0, 0))))
+    return macros.new_step(kind, (0, 0, 1, 1), reference, **options)
+
+
+class Blocks(unittest.TestCase):
+    def test_if_and_end_are_added_around_the_chosen_steps(self):
+        macro = macros.add_steps(three_tap_macro(), 0, [red_step("if"), macros.new_step("end")], 1)
+        kinds = [action["step"]["wait"] if "step" in action else "tap" for action in macros.actions(macro)]
+        self.assertEqual(kinds, ["tap", "if", "tap", "end", "tap"])
+
+    def test_a_block_asking_for_more_steps_than_there_are_stops_at_the_end(self):
+        macro = macros.add_steps(three_tap_macro(), 0, [macros.new_step("repeat"), red_step("until")], 9)
+        kinds = [action["step"]["wait"] if "step" in action else "tap" for action in macros.actions(macro)]
+        self.assertEqual(kinds, ["tap", "repeat", "tap", "tap", "until"])
+
+    def test_removing_one_end_removes_its_partner(self):
+        macro = macros.add_steps(three_tap_macro(), 0, [red_step("if"), macros.new_step("end")], 1)
+        macro = macros.remove_action(macro, 3)
+        self.assertEqual(len(macros.actions(macro)), 3)
+        self.assertEqual(len(macro["events"]), 6)
+
+    def test_markers_without_a_partner_are_left_out(self):
+        macro = macros.add_step(three_tap_macro(), 0, macros.new_step("end"))
+        self.assertEqual(macros.pair_up(macro["events"]), {})
+
+    def play(self, screen, macro):
+        done, notes = threading.Event(), []
+        macros.Player(screen, macro, on_done=done.set, on_note=notes.append)
+        self.assertTrue(done.wait(15))
+        return notes
+
+    def if_macro(self):
+        return macros.add_steps(three_tap_macro(), 0, [red_step("if"), macros.new_step("end")], 1)
+
+    def test_the_steps_inside_an_if_run_when_the_area_matches(self):
+        screen = FakeScreen(solid((200, 0, 0)))
+        self.play(screen, self.if_macro())
+        self.assertEqual(len(screen.sent), 6)
+
+    def test_the_steps_inside_an_if_are_skipped_when_it_does_not(self):
+        screen = FakeScreen(solid((0, 0, 0)))
+        started = time.monotonic()
+        self.play(screen, self.if_macro())
+        self.assertEqual(len(screen.sent), 4)
+        # The skipped step's time is skipped too, so the last tap isn't left waiting for it
+        self.assertLess(time.monotonic() - started, 0.55)
+
+    def test_repeat_runs_the_steps_again_until_the_area_matches(self):
+        macro = macros.add_steps(three_tap_macro(), 0, [macros.new_step("repeat"), red_step("until")], 1)
+        screen = FakeScreen(solid((0, 0, 0)), solid((0, 0, 0)), solid((200, 0, 0)))
+        notes = self.play(screen, macro)
+        self.assertEqual(notes, [])
+        self.assertEqual(len(screen.sent), 2 + 3 * 2 + 2)
+
+    def test_repeat_gives_up_after_its_limit_and_says_so(self):
+        macro = macros.add_steps(three_tap_macro(), 0,
+                                 [macros.new_step("repeat"), red_step("until", repeats=2)], 1)
+        screen = FakeScreen(solid((0, 0, 0)))
+        notes = self.play(screen, macro)
+        self.assertEqual(len(screen.sent), 2 + 2 * 2)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("repeated 2 times", notes[0])
+
+    def test_repeat_can_carry_on_after_its_limit(self):
+        macro = macros.add_steps(three_tap_macro(), 0,
+                                 [macros.new_step("repeat"), red_step("until", repeats=2, then="go")], 1)
+        screen = FakeScreen(solid((0, 0, 0)))
+        self.assertEqual(self.play(screen, macro), [])
+        self.assertEqual(len(screen.sent), 2 + 2 * 2 + 2)
+
+
+def scene(x=20, y=40, width=64, height=128, noise=0):
+    """A dark screen with a red square with a white dot in it, so there is only one place it fits"""
+    frame = bytearray(bytes((10, 10, 10)) * (width * height))
+    for dy in range(8):
+        for dx in range(8):
+            colour = (255, 255, 255) if (dx, dy) == (2, 5) else (200 + noise, 0, 0)
+            at = ((y + dy) * width + x + dx) * 3
+            frame[at:at + 3] = bytes(colour)
+    return bytes(frame), width, height
+
+
+SQUARE = (20 / 64, 40 / 128, 8 / 64, 8 / 128)
+EMPTY = bytes((10, 10, 10)) * (64 * 128), 64, 128
+
+
+class PictureSearch(unittest.TestCase):
+    def picture(self):
+        return vision.crop(*scene(), SQUARE)
+
+    def test_a_single_colour_is_flat_and_a_drawing_is_not(self):
+        self.assertTrue(vision.flat(bytes((90, 90, 90)) * 64))
+        self.assertFalse(vision.flat(self.picture()[0]))
+
+    def test_crop_cuts_out_the_marked_pixels(self):
+        pixels, across, down = self.picture()
+        self.assertEqual((across, down, len(pixels)), (8, 8, 8 * 8 * 3))
+
+    def test_finds_the_picture_where_it_is(self):
+        for x, y in ((20, 40), (0, 0), (56, 120), (31, 77)):
+            hit = vision.find(*scene(x, y), self.picture(), 0.05)
+            self.assertEqual(hit[:2], (x, y), (x, y))
+            self.assertLess(hit[2], 0.01)
+
+    def test_finds_it_with_a_little_colour_noise(self):
+        hit = vision.find(*scene(33, 60, noise=12), self.picture(), 0.08)
+        self.assertEqual(hit[:2], (33, 60))
+
+    def test_does_not_find_a_picture_that_is_not_there(self):
+        empty = bytes((10, 10, 10)) * (64 * 128), 64, 128
+        self.assertIsNone(vision.find(*empty, self.picture(), 0.08))
+
+    def test_a_picture_bigger_than_the_screen_is_not_found(self):
+        self.assertIsNone(vision.find(*scene(), (bytes(3 * 70 * 10), 70, 10), 0.08))
+
+    def test_a_four_byte_pixel_frame_works(self):
+        frame, width, height = scene(12, 12)
+        wide = bytearray()
+        for at in range(0, len(frame), 3):
+            wide.extend(frame[at:at + 3] + b"\xff")
+        self.assertEqual(vision.find(bytes(wide), width, height, self.picture(), 0.05)[:2], (12, 12))
+
+    def test_a_real_sized_screen_is_searched_quickly(self):
+        frame = scene(250, 400, width=320, height=568)
+        picture = vision.crop(*frame, (250 / 320, 400 / 568, 40 / 320, 40 / 568))
+        started = time.monotonic()
+        self.assertEqual(vision.find(*frame, picture, 0.08)[:2], (250, 400))
+        self.assertLess(time.monotonic() - started, 3)
+
+
+class FindSteps(unittest.TestCase):
+    def find_step(self, **options):
+        picture = macros.mark_picture(FakeScreen(scene()), [40, 80], SQUARE)
+        return macros.new_step("find", SQUARE, picture=picture, display=[40, 80], **options)
+
+    def play(self, screen, macro):
+        done, notes = threading.Event(), []
+        macros.Player(screen, macro, on_done=done.set, on_note=notes.append)
+        self.assertTrue(done.wait(15))
+        return notes
+
+    def macro_with(self, step):
+        return macros.add_step(two_tap_macro(), 0, step)
+
+    def test_taps_the_middle_of_the_picture_once_it_shows_up(self):
+        screen = FakeScreen(EMPTY, EMPTY, scene())
+        notes = self.play(screen, self.macro_with(self.find_step(timeout=10)))
+        self.assertEqual(notes, [])
+        self.assertEqual(screen.touches, [(0, 15, 28, True), (0, 15, 28, False)])
+        self.assertEqual(len(screen.sent), 4)
+
+    def test_stops_and_says_so_when_it_never_shows_up(self):
+        screen = FakeScreen(EMPTY)
+        notes = self.play(screen, self.macro_with(self.find_step(timeout=0.15)))
+        self.assertEqual(screen.touches, [])
+        self.assertEqual(len(screen.sent), 2)
+        self.assertIn("didn't happen in time", notes[0])
+
+    def test_can_carry_on_without_tapping(self):
+        screen = FakeScreen(EMPTY)
+        self.play(screen, self.macro_with(self.find_step(timeout=0.15, then="go")))
+        self.assertEqual(screen.touches, [])
+        self.assertEqual(len(screen.sent), 4)
+
+    def test_locate_says_where_the_picture_is_as_fractions(self):
+        x, y = macros.locate(FakeScreen(scene()), [40, 80], self.find_step())
+        self.assertAlmostEqual(x, 24 / 64)
+        self.assertAlmostEqual(y, 44 / 128)
+
+    def test_update_step_changes_its_settings_in_place(self):
+        macro = self.macro_with(self.find_step())
+        macros.update_step(macro, 1, timeout=60, then="go")
+        step = macros.actions(macro)[1]["step"]
+        self.assertEqual((step["timeout"], step["then"]), (60, "go"))
 
 
 if __name__ == "__main__":

@@ -18,6 +18,9 @@ LOOK_WIDTH = 160
 STILL_LIMIT = 0.012
 TIMEOUTS = ((10, "10 seconds"), (30, "30 seconds"), (60, "1 minute"), (300, "5 minutes"), (0, "No limit"))
 HOLDS = (0.5, 1.0, 2.0, 3.0)
+REPEATS = (5, 10, 25, 50, 100)
+AREA_KINDS = ("area", "if", "until")
+BLOCKS = {"if": "end", "repeat": "until"}
 
 cache = {}
 
@@ -142,8 +145,19 @@ def actions(macro):
 
 
 def describe_step(step):
+    kind = step.get("wait")
+    if kind == "if":
+        return "If the marked area looks the same, do the steps up to End if"
+    if kind == "end":
+        return "End if"
+    if kind == "repeat":
+        return "Repeat the steps up to Until"
+    if kind == "until":
+        return f"Until the marked area looks the same (at most {step.get('max', 50)} times)"
     limit = f"up to {step['timeout']:g} s" if step.get("timeout") else "no time limit"
-    if step.get("wait") == "still":
+    if kind == "find":
+        return f"Tap the marked picture when it shows up ({limit})"
+    if kind == "still":
         return f"Wait until the screen stops changing for {step.get('hold', 1.0):g} s ({limit})"
     return f"Wait until the marked area looks the same ({limit})"
 
@@ -165,13 +179,46 @@ def describe(action):
     return f"Tap at {x1}, {y1}"
 
 
-def new_step(kind, region=None, reference=None, tolerance=0.08, timeout=30, hold=1.0, then="stop"):
-    step = {"wait": kind, "timeout": timeout, "then": then}
-    if kind == "area":
+def new_step(kind, region=None, reference=None, tolerance=0.08, timeout=30, hold=1.0, then="stop", repeats=50,
+             picture=None, display=None):
+    """kind is area or still (wait), if or until (decide from the marked area), end or repeat (block ends),
+    or find (tap a picture wherever it shows up, which is the picture and the display it was marked on)"""
+    step = {"wait": kind}
+    if kind in AREA_KINDS:
         step.update(region=vision.clean_region(region), reference=reference, tolerance=tolerance)
-    else:
+    if kind == "find":
+        step.update(region=vision.clean_region(region), picture=picture, tolerance=tolerance, display=list(display))
+    if kind in ("area", "still", "find"):
+        step.update(timeout=timeout, then=then)
+    if kind == "still":
         step["hold"] = hold
+    if kind == "until":
+        step.update(max=repeats, then=then)
     return step
+
+
+def pair_up(events):
+    """Which If goes with which End, and which Repeat with which Until, as {index: partner index}. A marker
+    without its partner is left out and does nothing"""
+    pairs, open_blocks = {}, []
+    for index, (_, payload) in enumerate(events):
+        kind = payload.get("wait") if isinstance(payload, dict) else None
+        if kind in BLOCKS:
+            open_blocks.append(index)
+        elif kind in BLOCKS.values() and open_blocks and BLOCKS[events[open_blocks[-1]][1]["wait"]] == kind:
+            opened = open_blocks.pop()
+            pairs[opened], pairs[index] = index, opened
+    return pairs
+
+
+def add_steps(macro, after, steps, count=1):
+    """One wait step, or a begin and end step around the next count actions"""
+    if len(steps) == 1:
+        return add_step(macro, after, steps[0])
+    found = actions(macro)
+    # The end goes in first, so the begin's place is still where it was
+    add_step(macro, max(after, min(len(found) - 1, after + count)), steps[1])
+    return add_step(macro, after, steps[0])
 
 
 def add_step(macro, after, step):
@@ -191,14 +238,63 @@ def update_step(macro, number, **changes):
     return macro
 
 
-def look(bridge, display, step):
-    """What the screen looks like right now for this step, or None if the emulator didn't answer"""
-    width = LOOK_WIDTH
+def grab(bridge, display, width):
+    """A small raw picture of the screen as (bytes, width, height), or None if the emulator didn't answer"""
     height = max(1, round(width * display[1] / display[0])) if display and display[0] else width * 2
     try:
-        frame, width, height = bridge.pixels(width, height)
+        return bridge.pixels(width, height)
     except Exception:
         return None
+
+
+def mark_picture(bridge, display, region):
+    """The pixels inside a region, to look for later, or None if the emulator didn't answer"""
+    shot = grab(bridge, display, vision.FIND_WIDTH)
+    if shot is None:
+        return None
+    pixels, across, down = vision.crop(*shot, region)
+    return {"w": across, "h": down, "pixels": vision.encode(pixels)}
+
+
+def locate(bridge, display, step):
+    """Where the marked picture is on screen right now, as the fractions (across, down) of its middle, or None"""
+    shot = grab(bridge, display, vision.FIND_WIDTH)
+    if shot is None:
+        return None
+    frame, width, height = shot
+    picture = step["picture"]
+    hit = vision.find(frame, width, height, (vision.decode(picture["pixels"]), picture["w"], picture["h"]),
+                      step.get("tolerance", 0.08))
+    return None if hit is None else ((hit[0] + picture["w"] / 2) / width, (hit[1] + picture["h"] / 2) / height)
+
+
+def seek(bridge, display, step, stopped, poll=POLL, clock=time.monotonic):
+    """Waits for the marked picture. Its position, False if it ran out of time, None if playback was stopped"""
+    timeout = step.get("timeout", 30)
+    deadline = clock() + timeout if timeout else None
+    while not stopped.is_set():
+        found = locate(bridge, display, step)
+        if found:
+            return found
+        if deadline is not None and clock() >= deadline:
+            return False
+        stopped.wait(poll)
+    return None
+
+
+def tap(bridge, display, point, stopped):
+    x, y = round(point[0] * display[0]), round(point[1] * display[1])
+    bridge.touch((0, x, y, True))
+    stopped.wait(0.06)
+    bridge.touch((0, x, y, False))
+
+
+def look(bridge, display, step):
+    """What the screen looks like right now for this step, or None if the emulator didn't answer"""
+    shot = grab(bridge, display, LOOK_WIDTH)
+    if shot is None:
+        return None
+    frame, width, height = shot
     if step.get("wait") == "still":
         return vision.sample(frame, width, height, vision.WHOLE_SCREEN, vision.STILL_GRID)
     return vision.sample(frame, width, height, step["region"])
@@ -208,6 +304,12 @@ def distance(bridge, display, step):
     """How different the marked area is from when the step was made (0 to 1), or None if it can't be read"""
     seen = look(bridge, display, step)
     return None if seen is None else vision.difference(seen, vision.decode(step["reference"]))
+
+
+def matches(bridge, display, step):
+    """Does the marked area look the way it did when the step was made, right now? An unreadable screen doesn't"""
+    gap = distance(bridge, display, step)
+    return gap is not None and gap <= step.get("tolerance", 0.08)
 
 
 def wait_for(bridge, display, step, stopped, poll=POLL, clock=time.monotonic):
@@ -244,6 +346,19 @@ def finish(macro):
 
 
 def remove_action(macro, number):
+    # Taking out one end of an If or Repeat takes the other with it
+    found = actions(macro)
+    pairs = pair_up(macro["events"])
+    first = found[number]["events"][0]
+    if first in pairs:
+        other = next(index for index, action in enumerate(found) if pairs[first] in action["events"])
+        for index in sorted((number, other), reverse=True):
+            macro = remove_one(macro, index)
+        return macro
+    return remove_one(macro, number)
+
+
+def remove_one(macro, number):
     # Later actions move up by the time this one and the wait before it took, so their own waits stay as they were
     found = actions(macro)
     action = found[number]
@@ -277,25 +392,61 @@ class Player:
         self.stopped = threading.Event()
         threading.Thread(target=self.play, daemon=True).start()
 
+    def note(self, text):
+        if self.on_note:
+            self.on_note(text)
+
     def play(self):
         played = 0
+        pairs = pair_up(self.events)
         while not self.stopped.is_set() and (self.loops == 0 or played < self.loops):
             start = time.monotonic()
-            # Time spent in wait steps, so the events after them keep their spacing
+            # Time spent waiting, and time skipped over, so the events after them keep their spacing
             delay = 0.0
-            for offset, payload in self.events:
+            repeated = {}
+            index = 0
+            while index < len(self.events):
+                offset, payload = self.events[index]
                 if self.stopped.wait(max(0.0, start + delay + offset - time.monotonic())):
                     break
-                if isinstance(payload, dict):
+                index += 1
+                if not isinstance(payload, dict):
+                    self.bridge.replay(payload)
+                    continue
+                kind = payload.get("wait")
+                if kind in ("area", "still"):
                     before = time.monotonic()
                     result = wait_for(self.bridge, self.display, payload, self.stopped)
                     delay += time.monotonic() - before
                     if result is False and payload.get("then", "stop") == "stop":
-                        if self.on_note:
-                            self.on_note(f"Macro stopped: {describe_step(payload).lower()} didn't happen in time")
+                        self.note(f"Macro stopped: {describe_step(payload).lower()} didn't happen in time")
                         self.stopped.set()
-                    continue
-                self.bridge.replay(payload)
+                elif kind == "find":
+                    before = time.monotonic()
+                    point = seek(self.bridge, payload.get("display") or self.display, payload, self.stopped)
+                    delay += time.monotonic() - before
+                    if point:
+                        tap(self.bridge, payload.get("display") or self.display, point, self.stopped)
+                    elif point is False and payload.get("then", "stop") == "stop":
+                        self.note(f"Macro stopped: {describe_step(payload).lower()} didn't happen in time")
+                        self.stopped.set()
+                elif kind == "if" and index - 1 in pairs and not matches(self.bridge, self.display, payload):
+                    end = pairs[index - 1]
+                    delay -= self.events[end][0] - offset
+                    index = end
+                elif kind == "until" and index - 1 in pairs and not matches(self.bridge, self.display, payload):
+                    count = repeated[index - 1] = repeated.get(index - 1, 0) + 1
+                    if count >= payload.get("max", 50):
+                        if payload.get("then", "stop") == "stop":
+                            self.note(f"Macro stopped: repeated {count} times and the marked area never "
+                                      "looked the same")
+                            self.stopped.set()
+                        continue
+                    if self.stopped.wait(POLL):
+                        break
+                    # Back to just after the Repeat, with the clock set so the steps in between keep their spacing
+                    index = pairs[index - 1] + 1
+                    start, delay = time.monotonic() - self.events[index - 1][0], 0.0
             played += 1
             self.stopped.wait(self.gap)
         if self.on_done:

@@ -125,16 +125,26 @@ rounds, which suits idle and farming games. **Edit steps** shows each tap, swipe
 you can change how long it waits or remove it. Give a macro a hotkey, and turn on **Works in any
 program** to fire it while another program has the keyboard.
 
-**Wait steps** make a macro wait for the game instead of guessing how long it takes. In **Edit steps**, choose
-**Wait after** on any step (or **Add a wait step at the start**) and pick one of two things to wait for:
+**Smart steps** let a macro react to the screen instead of guessing. In **Edit steps**, choose **Add after** on
+any step (or **Add a smart step at the start**) and pick one of five:
 
-- **The marked area looks the way it does now.** Drag a box over something that only appears when the game
-  is ready, such as a button or a title. The macro carries on once that part of the screen matches again.
-  **Check now** on the step tells you whether it matches at this moment.
-- **The screen stops changing.** Good for loading screens, with nothing to mark.
+- **Wait until the marked area looks the way it does now.** Drag a box over something that only appears when
+  the game is ready, such as a button or a title. The macro carries on once that part of the screen matches
+  again. **Check now** on the step tells you whether it matches at this moment.
+- **Wait until the screen stops changing.** Good for loading screens, with nothing to mark.
+- **If the marked area looks the way it does now, do the next steps.** Wraps the steps you choose in an If and
+  an End if, and skips them when the area doesn't match. Good for "tap Collect only if the button is showing".
+- **Repeat the next steps until the marked area looks the way it does now.** Runs them again until it does,
+  up to a limit you set.
+- **Tap the marked picture wherever it shows up.** Drag a small box around a button or icon. The macro
+  searches the whole screen for it, waits for it if it isn't there yet, and taps its middle. It suits buttons
+  that move, such as a Collect or Skip button that appears in a different place each time.
 
-Each wait step has a time limit, after which the macro either stops with a message or carries on anyway.
-Wait steps only compare colours in the area you marked, so they don't read text or recognise pictures.
+Waits, repeats and picture searches have a limit, after which the macro stops with a message or carries on
+anyway. **Settings** on a step changes how strict the match is and what happens at the limit, and removing one
+end of an If or a Repeat removes the other too. Smart steps compare colours, so they don't read text, and a box
+that is nearly one flat colour is refused because it would match almost anywhere. A picture is found at its
+original size, so it won't match if the game is shown at a different resolution.
 
 ### Profiles and sync
 

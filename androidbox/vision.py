@@ -48,6 +48,72 @@ def decode(text):
     return base64.b64decode(text)
 
 
+FIND_WIDTH = 320
+MAX_PICTURE = 96
+PICTURE_POINTS = 150
+COARSE_SLACK = 0.2
+
+
+def crop(frame, width, height, region):
+    """The pixels of a region of the frame as (bytes, width, height), 3 bytes a pixel"""
+    depth = depth_of(frame, width, height)
+    left, top, span_x, span_y = region
+    x0, y0 = int(left * width), int(top * height)
+    x1, y1 = min(width, max(x0 + 1, int((left + span_x) * width))), min(height, max(y0 + 1, int((top + span_y) * height)))
+    pixels = bytearray()
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            at = (y * width + x) * depth
+            pixels.extend(frame[at:at + 3])
+    return bytes(pixels), x1 - x0, y1 - y0
+
+
+def flat(pixels, spread=30):
+    """True if the pixels are nearly one colour, which would match almost anywhere"""
+    return all(max(pixels[channel::3]) - min(pixels[channel::3]) < spread for channel in range(3))
+
+
+def find(frame, width, height, picture, tolerance):
+    """Where a small picture (bytes, width, height) shows up in the frame. Returns (x, y, difference) for its
+    top left corner, or None when nothing is within the tolerance. It compares a spread of points from the
+    picture and gives up on a position as soon as it is clearly wrong, which keeps it quick without any
+    image library"""
+    pixels, across, down = picture
+    if across > width or down > height or not pixels:
+        return None
+    depth = depth_of(frame, width, height)
+    step = max(1, int(((across * down) / PICTURE_POINTS) ** 0.5))
+    points = [(dx, dy, pixels[(dy * across + dx) * 3], pixels[(dy * across + dx) * 3 + 1],
+               pixels[(dy * across + dx) * 3 + 2])
+              for dy in range(step // 2, down, step) for dx in range(step // 2, across, step)]
+    total = 255 * 3 * len(points)
+
+    def cost(x, y, limit):
+        spent = 0
+        for dx, dy, red, green, blue in points:
+            at = ((y + dy) * width + x + dx) * depth
+            spent += abs(frame[at] - red) + abs(frame[at + 1] - green) + abs(frame[at + 2] - blue)
+            if spent > limit:
+                return None
+        return spent
+
+    # Every second position first, allowing for being a pixel out, then the pixels around the best of those
+    best, found = min(1.0, tolerance + COARSE_SLACK) * total, None
+    for y in range(0, height - down + 1, 2):
+        for x in range(0, width - across + 1, 2):
+            spent = cost(x, y, best)
+            if spent is not None:
+                best, found = spent, (x, y)
+    if not found:
+        return None
+    for y in range(max(0, found[1] - 1), min(height - down, found[1] + 1) + 1):
+        for x in range(max(0, found[0] - 1), min(width - across, found[0] + 1) + 1):
+            spent = cost(x, y, best)
+            if spent is not None:
+                best, found = spent, (x, y)
+    return (found[0], found[1], best / total) if best / total <= tolerance else None
+
+
 def clean_region(region):
     left, top, span_x, span_y = (float(value) for value in region)
     left, top = min(max(left, 0.0), 1.0), min(max(top, 0.0), 1.0)

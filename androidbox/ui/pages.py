@@ -938,13 +938,12 @@ class MacroEditor(Modal):
 
     def __init__(self, parent, controller, name):
         super().__init__(parent, f"Edit {name}",
-                         "Each step is a tap, swipe, hold, key press or wait. Change how long it waits, or remove it. "
-                         "A wait step holds the macro until the screen is ready, so it keeps working when a game "
-                         "loads slowly.",
+                         "Each step is a tap, swipe, hold, key press or smart step. Change how long it waits, or "
+                         "remove it. Smart steps wait for the screen, or choose what to do by what is on it.",
                          width=700)
         self.controller = controller
         self.name = name
-        self.add(row(button("Add a wait step at the start", lambda: self.add_wait(-1), kind="secondary"), None))
+        self.add(row(button("Add a smart step at the start", lambda: self.add_wait(-1), kind="secondary"), None))
         holder = QWidget()
         self.rows = QVBoxLayout(holder)
         self.rows.setContentsMargins(0, 0, 8, 0)
@@ -984,12 +983,15 @@ class MacroEditor(Modal):
             step.setFixedWidth(26)
             extra = []
             if "step" in action:
-                if action["step"].get("wait") != "still":
+                if "reference" in action["step"] or "picture" in action["step"]:
                     status = label("", "Small")
                     extra = [status, button("Check now", lambda _=False, a=action, s=status: self.check(a, s),
                                             kind="secondary")]
+                if action["step"].get("wait") not in ("end", "repeat"):
+                    extra.append(button("Settings", lambda _=False, n=number, a=action: self.settings(n, a),
+                                        kind="secondary"))
             else:
-                extra = [button("Wait after", lambda _=False, n=number: self.add_wait(n), kind="secondary")]
+                extra = [button("Add after", lambda _=False, n=number: self.add_wait(n), kind="secondary")]
             self.rows.addWidget(row(step, label(action["label"], wrap=True), None, label("Waits", "Small"), wait,
                                     *extra,
                                     button("Remove", lambda _=False, n=number: self.remove(n), kind="secondary"),
@@ -1023,6 +1025,10 @@ class MacroEditor(Modal):
             return None
         return bridge
 
+    def settings(self, number, action):
+        StepSettings(self.parent(), action["step"],
+                     lambda changes: self.save(macros.update_step(self.macro(), number, **changes))).open()
+
     def add_wait(self, after):
         bridge = self.ready()
         if not bridge:
@@ -1036,11 +1042,15 @@ class MacroEditor(Modal):
             self.controller.notify.emit("Couldn't read the screen", "bad")
             return
         WaitStepDialog(self.parent(), bridge, self.display(), pixmap,
-                       lambda step: self.save(macros.add_step(self.macro(), after, step))).open()
+                       lambda steps, count: self.save(macros.add_steps(self.macro(), after, steps, count))).open()
 
     def check(self, action, status):
         bridge = self.ready()
         if not bridge:
+            return
+        if "picture" in action["step"]:
+            status.setText("Found it" if macros.locate(bridge, self.display(), action["step"])
+                           else "Not on the screen right now")
             return
         gap = macros.distance(bridge, self.display(), action["step"])
         if gap is None:
@@ -1049,6 +1059,48 @@ class MacroEditor(Modal):
             status.setText("Matches now")
         else:
             status.setText(f"Doesn't match ({gap * 100:.0f}% different)")
+
+
+class StepSettings(Modal):
+    """Changes how strict a smart step is and how long it tries. What it looks at stays as it was marked"""
+
+    def __init__(self, parent, step, on_save):
+        super().__init__(parent, "Step settings", describe_for_settings(step), width=520)
+        self.step = step
+        self.on_save = on_save
+        kind = step.get("wait")
+        self.fields = {}
+        if kind in macros.AREA_KINDS or kind == "find":
+            self.fields["tolerance"] = choice([(f"{text} match", value) for value, text in vision.TOLERANCES],
+                                              self.closest(step.get("tolerance", 0.08)))
+        if kind == "still":
+            self.fields["hold"] = choice([(f"Still for {value:g} s", value) for value in macros.HOLDS],
+                                         step.get("hold", 1.0))
+        if kind in ("area", "still", "find"):
+            self.fields["timeout"] = choice([(text, value) for value, text in macros.TIMEOUTS],
+                                            step.get("timeout", 30))
+        if kind == "until":
+            self.fields["max"] = choice([(f"At most {value} times", value) for value in macros.REPEATS],
+                                        step.get("max", 50))
+        if kind != "if":
+            self.fields["then"] = choice([("Stop the macro", "stop"), ("Carry on anyway", "go")],
+                                         step.get("then", "stop"))
+        for name, widget in self.fields.items():
+            self.add(widget)
+        self.cancel()
+        self.action("Save", self.save)
+
+    @staticmethod
+    def closest(value):
+        return min((tolerance for tolerance, _ in vision.TOLERANCES), key=lambda option: abs(option - value))
+
+    def save(self):
+        self.on_save({name: widget.currentData() for name, widget in self.fields.items()})
+        return True
+
+
+def describe_for_settings(step):
+    return macros.describe_step(step) + ". To look at something else, remove the step and add it again."
 
 
 class AreaPicker(QWidget):
@@ -1107,54 +1159,91 @@ class AreaPicker(QWidget):
 
 
 class WaitStepDialog(Modal):
+    AREA_HINT = ("Drag a box over something that only appears at the right moment, like a button or a title. "
+                 "This is the screen as it is right now.")
+
     def __init__(self, parent, bridge, display, pixmap, on_add):
-        super().__init__(parent, "Add a wait step", "Pick what the macro should wait for before it carries on.",
-                         width=700)
+        super().__init__(parent, "Add a smart step", "Make the macro wait for the game, or choose what to do by "
+                         "what is on the screen.", width=700)
         self.bridge = bridge
         self.display = display
         self.on_add = on_add
-        self.kind = choice([("The marked area looks the way it does now", "area"),
-                            ("The screen stops changing (loading screens)", "still")], "area")
+        self.kind = choice([("Wait until the marked area looks the way it does now", "area"),
+                            ("Wait until the screen stops changing (loading screens)", "still"),
+                            ("If the marked area looks the way it does now, do the next steps", "if"),
+                            ("Repeat the next steps until the marked area looks the way it does now", "until"),
+                            ("Tap the marked picture wherever it shows up", "find")], "area")
         self.kind.currentIndexChanged.connect(self.kind_changed)
         self.picker = AreaPicker(pixmap)
-        self.hint = label("Drag a box over something that only appears when the game is ready, like a button or "
-                          "a title. This is the screen as it is right now.", "Small", wrap=True)
+        self.hint = label(self.AREA_HINT, "Small", wrap=True)
         self.tolerance = choice([(f"{text} match", value) for value, text in vision.TOLERANCES], 0.08)
         self.hold = choice([(f"Still for {value:g} s", value) for value in macros.HOLDS], 1.0)
         self.timeout = choice([(text, value) for value, text in macros.TIMEOUTS], 30)
+        self.repeats = choice([(f"At most {value} times", value) for value in macros.REPEATS], 50)
+        self.count = choice([(f"The next {value} step{'s' if value > 1 else ''}", value) for value in range(1, 11)], 1)
         self.then = choice([("Stop the macro", "stop"), ("Carry on anyway", "go")], "stop")
+        self.give_up = label("Give up after", "Small")
+        self.covers = label("Covers", "Small")
         self.add(self.kind)
         self.add(self.picker)
         self.add(self.hint)
-        self.add(row(label("Match", "Small"), self.tolerance, self.hold, None, spacing=10))
-        self.add(row(label("Give up after", "Small"), self.timeout, label("Then", "Small"), self.then, None,
-                     spacing=10))
+        self.add(row(label("Match", "Small"), self.tolerance, self.hold, self.covers, self.count, None, spacing=10))
+        self.add(row(self.give_up, self.timeout, self.repeats, label("Then", "Small"), self.then, None, spacing=10))
         self.cancel()
         self.action("Add step", self.add_step)
         self.kind_changed()
 
     def kind_changed(self):
-        area = self.kind.currentData() == "area"
+        kind = self.kind.currentData()
+        area = kind in macros.AREA_KINDS or kind == "find"
         for widget in (self.picker, self.hint, self.tolerance):
             widget.setVisible(area)
-        self.hold.setVisible(not area)
+        self.hint.setText("Drag a small box around a button or icon. The macro looks for it anywhere on the "
+                          "screen and taps its middle." if kind == "find" else self.AREA_HINT)
+        self.hold.setVisible(kind == "still")
+        self.timeout.setVisible(kind in ("area", "still", "find"))
+        self.give_up.setVisible(kind in ("area", "still", "find"))
+        self.repeats.setVisible(kind == "until")
+        self.covers.setVisible(kind in ("if", "until"))
+        self.count.setVisible(kind in ("if", "until"))
+        self.then.setVisible(kind != "if")
 
     def add_step(self):
+        kind = self.kind.currentData()
         timeout, then = self.timeout.currentData(), self.then.currentData()
-        if self.kind.currentData() == "still":
-            self.on_add(macros.new_step("still", timeout=timeout, hold=self.hold.currentData(), then=then))
+        if kind == "still":
+            self.on_add([macros.new_step("still", timeout=timeout, hold=self.hold.currentData(), then=then)], 1)
             return True
         region = self.picker.chosen()
         if not region:
-            self.hint.setText("Drag a box over the part of the screen to wait for first.")
+            self.hint.setText("Drag a box over the part of the screen to look at first.")
             return False
         region = vision.clean_region(region)
+        if kind == "find":
+            picture = macros.mark_picture(self.bridge, self.display, region)
+            if picture is None:
+                self.hint.setText("Couldn't read the screen. Try again.")
+                return False
+            if max(picture["w"], picture["h"]) > vision.MAX_PICTURE:
+                self.hint.setText("That box is too big to search for. Drag a smaller one around just the button "
+                                  "or icon.")
+                return False
+            if vision.flat(vision.decode(picture["pixels"])):
+                self.hint.setText("That part of the screen is nearly one colour, so it would match almost "
+                                  "anywhere. Include some of the icon's edge or its drawing.")
+                return False
+            self.on_add([macros.new_step("find", region, picture=picture, tolerance=self.tolerance.currentData(),
+                                         timeout=timeout, then=then, display=self.display)], 1)
+            return True
         seen = macros.look(self.bridge, self.display, {"wait": "area", "region": region})
         if seen is None:
             self.hint.setText("Couldn't read the screen. Try again.")
             return False
-        self.on_add(macros.new_step("area", region, vision.encode(seen), self.tolerance.currentData(), timeout,
-                                    then=then))
+        step = macros.new_step(kind, region, vision.encode(seen), self.tolerance.currentData(), timeout, then=then,
+                               repeats=self.repeats.currentData())
+        steps = {"area": [step], "if": [step, macros.new_step("end")],
+                 "until": [macros.new_step("repeat"), step]}[kind]
+        self.on_add(steps, self.count.currentData())
         return True
 
 

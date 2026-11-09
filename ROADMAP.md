@@ -3,8 +3,9 @@
 What is planned for Androidbox, roughly in order. Nothing here is a promise or a date.
 
 ## Done recently
-- Macro wait steps: wait until a marked part of the screen looks the same, or until the screen stops changing,
-  with a time limit
+- Macro smart steps: wait until a marked part of the screen looks the same or until the screen stops changing,
+  If ... End if, Repeat ... until, and tapping a marked picture wherever it shows up, each with a limit and
+  editable settings
 - Apps page: search, running apps first, Stop, Stop all, Force stop, Clear data, Install APK
 - Claude helper: list_apps, current_app, wait_for_app, open_url, clear_app_data, push_file, pull_file, rotate,
   and type_text that quotes special characters
@@ -13,9 +14,8 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 - Tests, run before every release
 
 ## Next
-- Smart macros, part 2: If the marked area matches ... End if, and repeat until it matches
-- Smart macros, part 3: tap wherever a picture appears on screen. Needs a faster way to search than plain Python
-- Check macro wait steps on a running instance and tune how strict Strict, Normal and Loose are
+- Check macro smart steps on a running instance and tune how strict Strict, Normal and Loose are, and how fast
+  the picture search is on a busy game screen
 - Check every new feature on a running instance, on Android 16 and on the Android 4.1 image
 - Typing non-Latin text (Persian, Arabic, CJK, emoji) for Claude and the app. Android's `input text` cannot do it,
   so this needs the emulator's clipboard channel or a small helper app on the device
