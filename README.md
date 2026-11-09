@@ -566,6 +566,19 @@ python -m venv .venv
   [XERJ Corpus Hub](https://hub.xerj.org/contributors/Wolklaw):
   [![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/Wolklaw/badge.svg)](https://hub.xerj.org/contributors/Wolklaw)
 
+## Code signing policy
+
+Androidbox's installer isn't code-signed yet, which is why Windows warns about an unknown publisher. Free code
+signing from [SignPath.io](https://signpath.io), with a certificate from the
+[SignPath Foundation](https://signpath.org), has been applied for. Once it's approved, every release
+installer will be signed with it, and this section will say so.
+
+- **Who signs:** only releases built from this repository's `main` branch by the
+  [release workflow](.github/workflows/release.yml) on GitHub Actions.
+- **Who approves a release:** the project maintainer, [Wolklaw](https://github.com/Wolklaw).
+- **Privacy:** Androidbox collects no data about you. It contacts Google to download Android, GitHub to
+  check for updates, and Mozilla only when you install Firefox from it. See [Why Androidbox](#why-androidbox).
+
 ## License
 
 Androidbox is released under the [MIT License](LICENSE).
