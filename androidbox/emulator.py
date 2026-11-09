@@ -20,6 +20,14 @@ QUICK_BOOT_LIMIT = 45
 APP_PACKAGES = {".apk", ".apks", ".xapk", ".apkm"}
 
 
+def ad_blocking_reachable(timeout=4):
+    try:
+        with socket.create_connection((AD_BLOCKING_DNS, 853), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def environment():
     return {
         **os.environ,
@@ -347,7 +355,9 @@ class Emulator:
         return False, reason
 
     def block_ads(self, enabled):
-        if enabled:
+        # Strict private DNS leaves Android with no internet at all when the network blocks DNS-over-TLS
+        # (port 853), as many school, work, VPN and firewall setups do, so only turn it on if it can be reached
+        if enabled and ad_blocking_reachable():
             self.adb("shell", f"settings put global private_dns_specifier {AD_BLOCKING_DNS}"
                               " && settings put global private_dns_mode hostname")
         else:
