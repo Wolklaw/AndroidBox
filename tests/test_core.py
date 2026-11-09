@@ -477,5 +477,15 @@ class FindSteps(unittest.TestCase):
         self.assertEqual((step["timeout"], step["then"]), (60, "go"))
 
 
+class LegacyEmulatorTests(unittest.TestCase):
+    def test_only_the_android_4_1_image_uses_the_older_emulator(self):
+        from androidbox import installer, paths
+        self.assertTrue(installer.needs_legacy_emulator(installer.LEGACY_API))
+        self.assertEqual(installer.emulator_exe(installer.LEGACY_API), paths.LEGACY_EMULATOR)
+        for api in ("36", "30"):
+            self.assertFalse(installer.needs_legacy_emulator(api))
+            self.assertEqual(installer.emulator_exe(api), paths.EMULATOR)
+
+
 if __name__ == "__main__":
     unittest.main()

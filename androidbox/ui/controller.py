@@ -255,7 +255,7 @@ class Controller(QObject):
     def start(self, wipe=False, fresh=False):
         if self.state not in ("off", "crashed"):
             return
-        if not installer.image_installed(self.instance.api):
+        if not installer.runnable(self.instance.api):
             self.image_missing.emit()
             return
         self.epoch += 1

@@ -10,7 +10,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import bridge, instances, paths, system
+from . import bridge, installer, instances, paths, system
 
 AD_BLOCKING_DNS = "dns.adguard-dns.com"
 # Tools like Android Studio and Godot restart the shared adb server on 5037 whenever they like, which drops
@@ -117,9 +117,15 @@ class Emulator:
         fresh = instances.write_avd(self.instance) or fresh
         # The emulator leaves dynamic GLES off by default, which caps Android 11 at OpenGL ES 2.0 and
         # makes the Play Store hide every game that needs ES 3, BitLife among them
-        args = [str(paths.EMULATOR), "-avd", self.instance.id, "-port", str(self.instance.console_port),
-                "-grpc", str(self.instance.grpc_port), "-grpc-use-token", "-no-window", "-gpu", self.instance.gpu_mode,
-                "-feature", "GLESDynamicVersion", "-no-boot-anim", "-no-metrics"]
+        args = [str(installer.emulator_exe(self.instance.api)), "-avd", self.instance.id,
+                "-port", str(self.instance.console_port), "-grpc", str(self.instance.grpc_port), "-grpc-use-token",
+                "-no-window", "-gpu", self.instance.gpu_mode, "-feature", "GLESDynamicVersion", "-no-boot-anim"]
+        if installer.needs_legacy_emulator(self.instance.api):
+            # The older emulator refuses to find any system image unless the SDK has a platforms folder, even
+            # an empty one, and doesn't know -no-metrics
+            (paths.SDK / "platforms").mkdir(exist_ok=True)
+        else:
+            args.append("-no-metrics")
         if wipe:
             args.append("-wipe-data")
         if fresh:

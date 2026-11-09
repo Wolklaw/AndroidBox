@@ -49,6 +49,7 @@ SETTINGS = DATA / "settings.json"
 CRASH_LOG = DATA / "crash.log"
 
 EMULATOR = SDK / "emulator" / "emulator.exe"
+LEGACY_EMULATOR = SDK / "emulator-legacy" / "emulator.exe"
 ADB = SDK / "platform-tools" / "adb.exe"
 DISCOVERY = {LOCAL / "Temp" / "avd" / "running", Path(tempfile.gettempdir()) / "avd" / "running"}
 CONSOLE_TOKEN = Path.home() / ".emulator_console_auth_token"

@@ -22,6 +22,14 @@ LEGACY_API = "16"
 LEGACY_TAG = "google_apis"
 LEGACY_ABI = "armeabi-v7a"
 ARCH_FAMILY = {"x86_64": "x86_64", "x86": "x86", "armeabi-v7a": "arm", "arm64-v8a": "arm64"}
+# Google's current emulator can't start a 32-bit ARM image at all ("CPU Architecture 'arm' is not supported"),
+# so that image runs on the last emulator that still can. 30.3.5 is the newest build found that boots one while
+# still offering the gRPC screen and input service Androidbox is built on, and it sits beside the current
+# emulator rather than replacing it.
+LEGACY_EMULATOR = Path("emulator-legacy")
+LEGACY_EMULATOR_URL = REPOSITORY + "emulator-windows_x64-7033400.zip"
+LEGACY_EMULATOR_SIZE = 320335172
+LEGACY_EMULATOR_SHA1 = "96bdb19ff3728586432fafac6220339d2d30f3c2"
 TAG_LABELS = {"google_apis_playstore": "Google Play", "google_apis": "Google APIs"}
 # Android 15 stays known so existing instances keep running, but new instances get 16, 11 or the legacy image
 ANDROID_VERSIONS = {"36": "Android 16", "35": "Android 15", "30": "Android 11",
@@ -36,6 +44,19 @@ def image_tag(api):
 
 def image_abi(api):
     return LEGACY_ABI if api == LEGACY_API else IMAGE_ABI
+
+
+def needs_legacy_emulator(api):
+    return api == LEGACY_API
+
+
+def emulator_exe(api):
+    return paths.LEGACY_EMULATOR if needs_legacy_emulator(api) else paths.EMULATOR
+
+
+def runnable(api):
+    """Whether everything an instance of this Android version starts with is on this PC"""
+    return image_installed(api) and (not needs_legacy_emulator(api) or (paths.SDK / LEGACY_EMULATOR).is_dir())
 
 
 def image_repository(api):
@@ -87,6 +108,11 @@ def resolve(api=DEFAULT_API, tools=True):
                      newest(repository, "emulator", REPOSITORY, "the emulator", REQUIRED[1])]
     packages.append(newest(images, f"system-images;android-{api};{image_tag(api)};{image_abi(api)}",
                            image_repo, ANDROID_VERSIONS[api], image_dir(api)))
+    if needs_legacy_emulator(api):
+        current = newest(repository, "emulator", REPOSITORY, "the emulator", REQUIRED[1])
+        packages.insert(0, Package(label="the emulator for Android 4.1", url=LEGACY_EMULATOR_URL,
+                                   size=LEGACY_EMULATOR_SIZE, sha1=LEGACY_EMULATOR_SHA1, license=current.license,
+                                   folder=LEGACY_EMULATOR))
     texts = {**licenses(images), **licenses(repository)}
     return packages, {p.license: texts.get(p.license, "") for p in packages}
 
