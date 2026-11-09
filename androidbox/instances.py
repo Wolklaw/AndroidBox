@@ -339,7 +339,7 @@ def write_avd(instance):
         "disk.dataPartition.size": f"{instance.disk}G",
         "hw.gpu.mode": instance.gpu_mode,
         "hw.cpu.ncore": str(instance.cores),
-        "hw.ramSize": str(instance.ram),
+        "hw.ramSize": str(installer.usable_ram(instance.api, instance.ram)),
         "hw.lcd.width": str(instance.width),
         "hw.lcd.height": str(instance.height),
         "hw.lcd.density": str(instance.density),

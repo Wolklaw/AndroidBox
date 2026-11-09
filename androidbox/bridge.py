@@ -37,14 +37,34 @@ class Bridge:
         self.recording = None
         self.mirrors = []
         self.closed = False
+        # Older emulators (the one Android 4.1 runs on) have no input stream, only one call per event
+        self.one_by_one = False
         threading.Thread(target=self.deliver, daemon=True).start()
 
     def deliver(self):
         while not self.closed:
             try:
-                self.stub.streamInputEvent(iter(self.outbox.get, None), metadata=self.metadata)
-            except grpc.RpcError:
-                time.sleep(0.5)
+                if self.one_by_one:
+                    self.deliver_one_by_one()
+                else:
+                    self.stub.streamInputEvent(iter(self.outbox.get, None), metadata=self.metadata)
+            except grpc.RpcError as error:
+                if error.code() == grpc.StatusCode.UNIMPLEMENTED and not self.one_by_one:
+                    self.one_by_one = True
+                    # The refused stream may have a thread still waiting on the outbox: this wakes it
+                    # so it can't swallow the first real event
+                    self.outbox.put(None)
+                else:
+                    time.sleep(0.5)
+
+    def deliver_one_by_one(self):
+        calls = {"key_event": self.stub.sendKey, "touch_event": self.stub.sendTouch,
+                 "mouse_event": self.stub.sendMouse, "wheel_event": self.stub.injectWheel}
+        while not self.closed:
+            event = self.outbox.get()
+            kind = event.WhichOneof("type") if event is not None else None
+            if kind in calls:
+                calls[kind](getattr(event, kind), metadata=self.metadata, timeout=10)
 
     def request(self, method, message=None, timeout=10):
         return getattr(self.stub, method)(message or empty_pb2.Empty(), metadata=self.metadata, timeout=timeout)

@@ -486,6 +486,12 @@ class LegacyEmulatorTests(unittest.TestCase):
             self.assertFalse(installer.needs_legacy_emulator(api))
             self.assertEqual(installer.emulator_exe(api), paths.EMULATOR)
 
+    def test_android_4_1_never_gets_4_gb_of_ram(self):
+        from androidbox import installer
+        self.assertEqual(installer.usable_ram(installer.LEGACY_API, 8192), installer.LEGACY_MAX_RAM)
+        self.assertEqual(installer.usable_ram(installer.LEGACY_API, 2048), 2048)
+        self.assertEqual(installer.usable_ram("36", 8192), 8192)
+
 
 if __name__ == "__main__":
     unittest.main()

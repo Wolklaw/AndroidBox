@@ -21,6 +21,8 @@ IMAGE_ABI = "x86_64"
 LEGACY_API = "16"
 LEGACY_TAG = "google_apis"
 LEGACY_ABI = "armeabi-v7a"
+# A 32-bit guest hangs at boot, with adb stuck offline, when given 4 GB or more
+LEGACY_MAX_RAM = 3072
 ARCH_FAMILY = {"x86_64": "x86_64", "x86": "x86", "armeabi-v7a": "arm", "arm64-v8a": "arm64"}
 # Google's current emulator can't start a 32-bit ARM image at all ("CPU Architecture 'arm' is not supported"),
 # so that image runs on the last emulator that still can. 30.3.5 is the newest build found that boots one while
@@ -48,6 +50,10 @@ def image_abi(api):
 
 def needs_legacy_emulator(api):
     return api == LEGACY_API
+
+
+def usable_ram(api, ram):
+    return min(ram, LEGACY_MAX_RAM) if needs_legacy_emulator(api) else ram
 
 
 def emulator_exe(api):
