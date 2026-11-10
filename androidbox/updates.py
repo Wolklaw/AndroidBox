@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from . import REPOSITORY, VERSION, paths
 
 RELEASES = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
-# Only an installer that GitHub itself serves from this project's releases is ever downloaded
+# Only an installer that GitHub itself serves from this project's releases is ever downloaded (GitHub's
+# spelling of the repository name can differ in case from ours, so the prefix is compared without case)
 DOWNLOADS = f"https://github.com/{REPOSITORY}/releases/download/"
 INSTALLER = re.compile(r"^Androidbox-Setup-\d+(\.\d+)*\.exe$")
 NOTES_LIMIT = 600
@@ -42,7 +43,7 @@ def latest():
     with urllib.request.urlopen(request(RELEASES), timeout=15) as response:
         release = json.loads(response.read())
     assets = [asset for asset in release.get("assets", []) if INSTALLER.match(asset.get("name", ""))
-              and asset.get("browser_download_url", "").startswith(DOWNLOADS)]
+              and asset.get("browser_download_url", "").lower().startswith(DOWNLOADS.lower())]
     asset = assets[0] if assets else {}
     digest = asset.get("digest") or ""
     return Release(version=release["tag_name"].lstrip("v"), page=release["html_url"],
