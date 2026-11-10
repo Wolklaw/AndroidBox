@@ -86,9 +86,19 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $previous = gh release view --json tagName --jq .tagName 2>$null
+          # The newest release's tag may not be in this checkout, and then there is nothing to compare against
+          if ($previous) { git rev-parse --verify --quiet "refs/tags/$previous" *> $null; if ($LASTEXITCODE -ne 0) { $previous = $null } }
           $range = if ($previous) { "$previous..HEAD" } else { "HEAD" }
           $changes = (git log $range --no-merges --format="- %s" | Out-String).Trim()
           # The app shows only the first 600 characters, and copies still running as DroidCore need this most
           $notes = "Press Download, then open the installer from the page. Your instances and settings are kept.`n`n$changes"
           Set-Content -Path notes.md -Value $notes -Encoding utf8
-          gh release create "v$version" "dist/Androidbox-Setup-$version.exe" --title "Androidbox $version" --notes-file notes.md --target $env:GITHUB_SHA
+          $installer = "dist/Androidbox-Setup-$version.exe"
+          gh release view "v$version" --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # Someone published this version while the build ran: add the installer to that release, don't fail
+            gh release upload "v$version" $installer --clobber
+          } else {
+            gh release create "v$version" $installer --title "Androidbox $version" --notes-file notes.md --target $env:GITHUB_SHA
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Publishing the release failed" }
