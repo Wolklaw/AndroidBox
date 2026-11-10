@@ -39,9 +39,24 @@ ANDROID_KEYS = {
     Qt.Key.Key_Tab: "Tab", Qt.Key.Key_Escape: "Escape", Qt.Key.Key_Delete: "Delete",
     Qt.Key.Key_Left: "ArrowLeft", Qt.Key.Key_Right: "ArrowRight", Qt.Key.Key_Up: "ArrowUp",
     Qt.Key.Key_Down: "ArrowDown", Qt.Key.Key_Home: "Home", Qt.Key.Key_End: "End",
-    Qt.Key.Key_PageUp: "PageUp", Qt.Key.Key_PageDown: "PageDown", Qt.Key.Key_Shift: "Shift",
-    Qt.Key.Key_Control: "Control", Qt.Key.Key_Alt: "Alt", Qt.Key.Key_Space: " ",
+    Qt.Key.Key_PageUp: "PageUp", Qt.Key.Key_PageDown: "PageDown", Qt.Key.Key_Space: " ",
 }
+
+# Held modifiers go to Android only around keys that have no character, like Shift+Arrow to select text.
+# Typed characters are sent as the character itself, so the Windows layout (Shift, AltGr) is already applied
+MODIFIER_KEYS = ((Qt.KeyboardModifier.ShiftModifier, "Shift"), (Qt.KeyboardModifier.ControlModifier, "Control"),
+                 (Qt.KeyboardModifier.AltModifier, "Alt"))
+
+
+def typed_text(event):
+    """The character this key press types with the active keyboard layout, or "" when it is a shortcut or a named key"""
+    text = event.text()
+    modifiers = event.modifiers()
+    # Windows reports AltGr as Ctrl+Alt, so only Ctrl without Alt is a shortcut
+    shortcut = modifiers & Qt.KeyboardModifier.ControlModifier and not modifiers & Qt.KeyboardModifier.AltModifier
+    if event.key() in ANDROID_KEYS or shortcut or not text or not text.isprintable():
+        return ""
+    return text
 
 PAD_KEYS = {
     "Pad A": "Enter", "Pad B": "GoBack", "Pad Start": "GoHome", "Pad Back": "AppSwitch",
@@ -645,9 +660,16 @@ class PhoneView(QWidget):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier and not event.isAutoRepeat() \
                 and self.controller.clipboard_shortcut(QKeySequence(event.key()).toString()):
             return
-        key = ANDROID_KEYS.get(event.key()) or (event.text() if event.text().isprintable() else "")
+        text = typed_text(event)
+        if text:
+            self.bridge.text(text)
+            return
+        key = ANDROID_KEYS.get(event.key())
         if key:
-            self.held[event.key()] = key
+            modifiers = [name for flag, name in MODIFIER_KEYS if event.modifiers() & flag]
+            for name in modifiers:
+                self.bridge.key(name, KEYDOWN)
+            self.held[event.key()] = [key, *reversed(modifiers)]
             self.bridge.key(key, KEYDOWN)
 
     def keyReleaseEvent(self, event):
@@ -655,8 +677,7 @@ class PhoneView(QWidget):
             return
         if self.handle(key_name(event), False):
             return
-        key = self.held.pop(event.key(), None)
-        if key:
+        for key in self.held.pop(event.key(), ()):
             self.bridge.key(key, KEYUP)
 
     def poll_pad(self):
@@ -712,8 +733,9 @@ class PhoneView(QWidget):
             self.engine.release_all()
             return
         self.send_touches(self.engine.release_all())
-        for key in self.held.values():
-            self.bridge.key(key, KEYUP)
+        for keys in self.held.values():
+            for key in keys:
+                self.bridge.key(key, KEYUP)
         self.held.clear()
         self.pad_left = (0.0, 0.0)
         self.pad_looking = False

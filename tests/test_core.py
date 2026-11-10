@@ -637,5 +637,29 @@ class Regressions(unittest.TestCase):
             shutil.rmtree(instance.folder, ignore_errors=True)
 
 
+class TypedTextTests(unittest.TestCase):
+    def press(self, key, text, modifiers=None):
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QKeyEvent
+        return QKeyEvent(QEvent.Type.KeyPress, key, modifiers or Qt.KeyboardModifier.NoModifier, text)
+
+    def test_layout_characters_are_sent_as_typed(self):
+        from PySide6.QtCore import Qt
+        from androidbox.ui.phone import typed_text
+        # An Italian layout: Shift+apostrophe types "?", AltGr (Ctrl+Alt) types "@" and the euro sign
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_Question, "?", Qt.KeyboardModifier.ShiftModifier)), "?")
+        both = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_At, "@", both)), "@")
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_E, chr(0x20ac), both)), chr(0x20ac))
+
+    def test_shortcuts_and_named_keys_are_not_text(self):
+        from PySide6.QtCore import Qt
+        from androidbox.ui.phone import typed_text
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_C, chr(3), Qt.KeyboardModifier.ControlModifier)), "")
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_Return, chr(13))), "")
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_Space, " ")), "")
+        self.assertEqual(typed_text(self.press(Qt.Key.Key_Shift, "")), "")
+
+
 if __name__ == "__main__":
     unittest.main()
