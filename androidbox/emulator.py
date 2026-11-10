@@ -442,10 +442,15 @@ class Emulator:
         return None if seconds is None or memory is None else (time.monotonic(), seconds, memory)
 
     def foreground_app(self):
-        code, output = self.adb("shell", "dumpsys window | grep mCurrentFocus", timeout=5)
-        if code != 0 or "/" not in output:
+        # Filtered here rather than with grep, which Android 4.1's shell doesn't have
+        code, output = self.adb("shell", "dumpsys", "window", timeout=5)
+        if code != 0:
             return None
-        return output.split("/")[0].split()[-1]
+        for line in output.splitlines():
+            if "mCurrentFocus" in line:
+                match = re.search(r"(\S+)/", line)
+                return match.group(1) if match else None
+        return None
 
     def set_priority(self, eco):
         pid = self.qemu_pid()

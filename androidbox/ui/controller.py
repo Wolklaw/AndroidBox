@@ -121,7 +121,8 @@ class Controller(QObject):
             missing = phase == "on" and bool(keep) and self.ticks % 4 == 0 and time.monotonic() - self.ready_at > 90 \
                 and not self.emulator.app_running(keep)
             return phase, package, token, self.emulator.usage() if phase == "on" else None, missing
-        except OSError:
+        except (OSError, IndexError, ValueError):
+            # An odd reply from an older Android is skipped; one bad check mustn't raise a dialog every tick
             return self.phase, self.package, None, None, False
         finally:
             self.checking = False
