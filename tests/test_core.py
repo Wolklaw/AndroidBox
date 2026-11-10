@@ -625,6 +625,17 @@ class Regressions(unittest.TestCase):
         self.assertEqual([title for title, _, _ in found], ["App crash", "App not responding"])
         self.assertEqual(found[0][2], ["E AndroidRuntime: FATAL EXCEPTION: main"])
 
+    def test_android_4_1_gets_an_sd_card_and_newer_versions_do_not(self):
+        # Without one, /sdcard on Android 4.1 is a locked folder and OUYA games and its launcher can't write
+        import shutil
+        from androidbox import installer
+        for api, expected in ((installer.LEGACY_API, "yes"), (installer.DEFAULT_API, "no")):
+            instance = instances.Instance(id=f"sdcard{api}", name="Card", slot=0, api=api)
+            instances.write_avd(instance)
+            config = (instance.folder / "config.ini").read_text()
+            self.assertIn(f"hw.sdCard={expected}\n", config)
+            shutil.rmtree(instance.folder, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,6 +41,7 @@ NETWORK_PROFILES = {
     "gprs": ("Very slow (GPRS)", "gprs", "gprs"),
 }
 SIZE_LIMITS = {"width": (320, 3840), "height": (320, 3840), "density": (120, 640)}
+LEGACY_SDCARD = "1024M"
 
 HARDWARE = {
     "avd.ini.encoding": "UTF-8",
@@ -333,6 +334,10 @@ def write_avd(instance):
     tag = installer.image_tag(instance.api)
     abi = installer.image_abi(instance.api)
     config.update(HARDWARE)
+    if installer.needs_legacy_emulator(instance.api):
+        # Android 4.1 keeps every app's saves, downloads and expansion files on the SD card. Without one /sdcard
+        # is a locked folder, and games and the OUYA launcher fail the moment they try to write to it
+        config["hw.sdCard"] = "yes"
     config.update({
         "AvdId": instance.id,
         "avd.ini.displayname": instance.name,

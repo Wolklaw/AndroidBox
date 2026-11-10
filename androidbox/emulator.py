@@ -124,6 +124,10 @@ class Emulator:
             # The older emulator refuses to find any system image unless the SDK has a platforms folder, even
             # an empty one, and doesn't know -no-metrics
             (paths.SDK / "platforms").mkdir(exist_ok=True)
+            # That emulator won't make the SD card image Android 4.1 needs for its storage by itself
+            card = self.sdcard()
+            if card:
+                args += ["-sdcard", str(card)]
         else:
             args.append("-no-metrics")
         if wipe:
@@ -143,6 +147,19 @@ class Emulator:
         with open(self.instance.log, "w") as log, without_crash_dialogs():
             self.process = subprocess.Popen(args, env=environment(), stdout=log, stderr=subprocess.STDOUT,
                                             creationflags=subprocess.CREATE_NO_WINDOW)
+
+    def sdcard(self):
+        """The SD card image of an Android 4.1 instance, made on first use. Android 4.1 keeps every app's saves,
+        downloads and expansion files on it: without one /sdcard is a locked folder and games and the OUYA
+        launcher fail the moment they write to it. None if it couldn't be made, so the instance still starts"""
+        card = self.instance.folder / "sdcard.img"
+        if card.exists():
+            return card
+        maker = paths.LEGACY_EMULATOR.with_name("mksdcard.exe")
+        if not maker.exists():
+            return None
+        code, _ = run([str(maker), instances.LEGACY_SDCARD, str(card)], timeout=120)
+        return card if code == 0 and card.exists() else None
 
     def wait_for_previous_run(self):
         # A previous emulator still winding down makes the new one quit with "Running multiple emulators with
