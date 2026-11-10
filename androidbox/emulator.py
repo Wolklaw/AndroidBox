@@ -223,7 +223,7 @@ class Emulator:
             close_crash_dialogs()
             time.sleep(0.1)
         if not self.fully_stopped():
-            self.force_stop()
+            self.kill()
         self.process = None
 
     def log_size(self):
@@ -241,7 +241,8 @@ class Emulator:
         except OSError:
             return False
 
-    def force_stop(self):
+    def kill(self):
+        # Not force_stop: that name belongs to the method below that ends one app inside Android
         pids = [self.process.pid] if self.process else []
         pid = self.qemu_pid()
         if pid:

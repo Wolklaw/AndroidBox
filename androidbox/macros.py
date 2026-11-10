@@ -39,9 +39,14 @@ def load():
         macros = []
         for path in sorted(folder.glob("*.json")):
             try:
-                macros.append(json.loads(path.read_text()))
+                macro = json.loads(path.read_text())
             except (OSError, ValueError):
                 continue
+            # A file that isn't a macro (a sync tool's leftovers, a hand edit) must not break every list of them
+            if isinstance(macro, dict) and isinstance(macro.get("name"), str) \
+                    and isinstance(macro.get("events"), list):
+                macro.setdefault("duration", 0.0)
+                macros.append(macro)
         cache["folder"] = folder
         cache["all"] = macros
     return cache["all"]
@@ -76,7 +81,7 @@ def save(name, recording, display):
 def update(current, **changes):
     macro = json.loads(file(current).read_text())
     if "name" in changes:
-        changes["name"] = re.sub(r'[\/:*?"<>|]', "", changes["name"]).strip() or current
+        changes["name"] = re.sub(r'[\\/:*?"<>|]', "", changes["name"]).strip() or current
         if changes["name"] != current and file(changes["name"]).exists():
             raise ValueError(f"A macro called {changes['name']} already exists")
     macro.update(changes)
@@ -397,9 +402,18 @@ class Player:
             self.on_note(text)
 
     def play(self):
+        try:
+            self.run()
+        finally:
+            # Also when a damaged macro stops playback half way, so it never stays marked as playing
+            if self.on_done:
+                self.on_done()
+
+    def run(self):
         played = 0
         pairs = pair_up(self.events)
-        while not self.stopped.is_set() and (self.loops == 0 or played < self.loops):
+        # Nothing to play would spin here for ever when asked to repeat until stopped with no wait between
+        while self.events and not self.stopped.is_set() and (self.loops == 0 or played < self.loops):
             start = time.monotonic()
             # Time spent waiting, and time skipped over, so the events after them keep their spacing
             delay = 0.0
@@ -449,8 +463,6 @@ class Player:
                     start, delay = time.monotonic() - self.events[index - 1][0], 0.0
             played += 1
             self.stopped.wait(self.gap)
-        if self.on_done:
-            self.on_done()
 
     def stop(self):
         self.stopped.set()

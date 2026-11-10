@@ -58,6 +58,14 @@ BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 ICON = BUNDLE / "assets" / "androidbox.ico"
 
 
+def write_text(path, text, encoding=None):
+    # Written beside the file and swapped in, so a crash or a full disk half way never leaves it cut short
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.tmp")
+    temporary.write_text(text, encoding=encoding)
+    temporary.replace(path)
+
+
 def moved():
     return HOME != DEFAULT_HOME
 

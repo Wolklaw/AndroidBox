@@ -198,6 +198,7 @@ class InstanceButton(SidebarButton):
         self.instance = instance
         self.state = "off"
         self.thumb = None
+        self.scaled_thumb = None
         self.stats = ""
         self.power_hit = False
 
@@ -206,7 +207,8 @@ class InstanceButton(SidebarButton):
         return POWER_ZONE.translated(self.width(), 0)
 
     def mousePressEvent(self, event):
-        self.power_hit = self.hovered and self.state not in ("booting", "stopping")             and self.power_zone().contains(event.position())
+        self.power_hit = self.hovered and self.state not in ("booting", "stopping") \
+            and self.power_zone().contains(event.position())
         if not self.power_hit:
             super().mousePressEvent(event)
 
@@ -224,6 +226,8 @@ class InstanceButton(SidebarButton):
 
     def set_live(self, thumb, stats):
         if thumb is not self.thumb or stats != self.stats:
+            if thumb is not self.thumb:
+                self.scaled_thumb = None
             self.thumb, self.stats = thumb, stats
             self.update()
 
@@ -242,8 +246,12 @@ class InstanceButton(SidebarButton):
         painter.save()
         painter.setClipPath(path)
         if self.thumb is not None and not self.thumb.isNull():
-            scaled = self.thumb.scaled(tile.size().toSize(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                                       Qt.TransformationMode.SmoothTransformation)
+            # Scaled once for each new picture, not again for every repaint the mouse causes
+            if self.scaled_thumb is None:
+                self.scaled_thumb = self.thumb.scaled(tile.size().toSize(),
+                                                      Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                                      Qt.TransformationMode.SmoothTransformation)
+            scaled = self.scaled_thumb
             painter.drawPixmap(tile.toRect(), scaled, QRectF((scaled.width() - tile.width()) / 2, 0,
                                                               tile.width(), tile.height()).toRect())
         else:

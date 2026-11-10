@@ -35,6 +35,14 @@ class Bar(QWidget):
         self.fraction = min(max(fraction, 0.0), 1.0)
         self.update()
 
+    def showEvent(self, event):
+        if self.busy:
+            self.timer.start()
+
+    def hideEvent(self, event):
+        # Its page can go out of view while it is still marked busy, and nothing is left to animate then
+        self.timer.stop()
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

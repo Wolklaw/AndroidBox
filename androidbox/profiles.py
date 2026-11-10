@@ -28,8 +28,7 @@ def state():
 
 def remember(**changes):
     state().update(changes)
-    paths.PROFILE_STATE.parent.mkdir(parents=True, exist_ok=True)
-    paths.PROFILE_STATE.write_text(json.dumps(state(), indent=2))
+    paths.write_text(paths.PROFILE_STATE, json.dumps(state(), indent=2))
 
 
 def read_json(path, default):
@@ -40,10 +39,7 @@ def read_json(path, default):
 
 
 def write_json(path, value, indent=2):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f"{path.name}.tmp")
-    temporary.write_text(json.dumps(value, indent=indent))
-    temporary.replace(path)
+    paths.write_text(path, json.dumps(value, indent=indent))
     stamp()
 
 

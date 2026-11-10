@@ -62,9 +62,13 @@ def crop(frame, width, height, region):
     x1, y1 = min(width, max(x0 + 1, int((left + span_x) * width))), min(height, max(y0 + 1, int((top + span_y) * height)))
     pixels = bytearray()
     for y in range(y0, y1):
-        for x in range(x0, x1):
-            at = (y * width + x) * depth
-            pixels.extend(frame[at:at + 3])
+        start, end = (y * width + x0) * depth, (y * width + x1) * depth
+        if depth == 3:
+            # Already three bytes a pixel, so a whole row comes across at once
+            pixels += frame[start:end]
+        else:
+            for at in range(start, end, depth):
+                pixels += frame[at:at + 3]
     return bytes(pixels), x1 - x0, y1 - y0
 
 

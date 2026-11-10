@@ -480,7 +480,7 @@ def run(command, arguments):
     elif command == "swipe" and len(arguments) in (4, 5):
         adb(serial, "shell", "input", "swipe", *arguments)
     elif command == "text" and arguments:
-        adb(serial, "shell", "input", "text", arguments[0].replace(" ", "%s"))
+        adb(serial, "shell", "input", "text", shell_quote(arguments[0].replace(" ", "%s")))
     elif command == "key" and arguments:
         adb(serial, "shell", "input", "keyevent", KEYS.get(arguments[0].upper(), arguments[0]))
     elif command == "install" and arguments:

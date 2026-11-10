@@ -84,7 +84,8 @@ class MainWindow(QMainWindow, ScreenActions):
         self.offered_update = None
         self.update_timer = QTimer(self, interval=UPDATE_CHECK_HOURS * 3600 * 1000, timeout=self.check_for_updates)
         self.hotkeys = Hotkeys(QApplication.instance())
-        QApplication.instance().installEventFilter(self)
+        self.konami_listening = False
+        self.listen_for_konami(True)
         tasks.relay.on_error = self.report
 
         central = QWidget()
@@ -363,6 +364,7 @@ class MainWindow(QMainWindow, ScreenActions):
         if self.screen.phone.editing and name != "screen":
             self.screen.phone.finish_editing()
         self.page = name
+        self.listen_for_konami(name == "instances")
         page = self.pages[name]
         if name in GLOBAL_PAGES:
             page.refresh()
@@ -479,12 +481,6 @@ class MainWindow(QMainWindow, ScreenActions):
         controller = self.active()
         if controller:
             self.toggle_controller(controller)
-
-    def toggle_controller(self, controller):
-        if controller.state in ("off", "crashed"):
-            controller.start()
-        elif controller.state == "on":
-            controller.stop()
 
     def pop_out(self, controller):
         key = controller.instance.id
@@ -968,6 +964,14 @@ class MainWindow(QMainWindow, ScreenActions):
         if len(self.logo_taps) >= fun.LOGO_CLICKS:
             self.logo_taps = []
             self.toast(random.choice(fun.LOGO_QUIPS))
+
+    def listen_for_konami(self, listening):
+        # A filter on the whole app has Python look at every event there is: each frame, timer tick and mouse
+        # move. It is only wanted on the one page, so it comes off while a game is on screen
+        if listening != self.konami_listening:
+            self.konami_listening = listening
+            app = QApplication.instance()
+            app.installEventFilter(self) if listening else app.removeEventFilter(self)
 
     def eventFilter(self, watched, event):
         # Up, up, down, down, left, right, left, right, B, A, on the instances page, where no game is listening

@@ -144,9 +144,18 @@ def from_dict(values, **overrides):
 
 def load():
     try:
-        instances = [from_dict(entry) for entry in json.loads(paths.INSTANCES.read_text())]
+        entries = json.loads(paths.INSTANCES.read_text())
     except (OSError, ValueError):
-        instances = []
+        entries = []
+    instances = []
+    for entry in entries if isinstance(entries, list) else []:
+        # One damaged entry must not stop Androidbox from opening: recover() rebuilds it from its files
+        try:
+            instance = from_dict(entry)
+        except (TypeError, AttributeError):
+            continue
+        if isinstance(instance.slot, int) and 0 <= instance.slot < len(CONSOLE_PORTS):
+            instances.append(instance)
     if recover(instances):
         save(instances)
     return instances
@@ -198,8 +207,7 @@ def recover(instances):
 
 
 def save(instances):
-    paths.INSTANCES.parent.mkdir(parents=True, exist_ok=True)
-    paths.INSTANCES.write_text(json.dumps([asdict(instance) for instance in instances], indent=2))
+    paths.write_text(paths.INSTANCES, json.dumps([asdict(instance) for instance in instances], indent=2))
 
 
 def free_slot(instances):

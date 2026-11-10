@@ -531,7 +531,7 @@ def run(command, arguments):
     elif command == "swipe" and len(arguments) in (4, 5):
         adb(serial, "shell", "input", "swipe", *arguments)
     elif command == "text" and arguments:
-        adb(serial, "shell", "input", "text", arguments[0].replace(" ", "%s"))
+        adb(serial, "shell", "input", "text", shell_quote(arguments[0].replace(" ", "%s")))
     elif command == "key" and arguments:
         adb(serial, "shell", "input", "keyevent", KEYS.get(arguments[0].upper(), arguments[0]))
     elif command == "install" and arguments:
@@ -622,9 +622,15 @@ def edit_config(change, path=None):
     the `claude` command isn't on PATH, as with the desktop app, so registration doesn't depend on it."""
     try:
         path = path or CONFIG
-        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        existed = path.exists()
+        data = json.loads(path.read_text(encoding="utf-8")) if existed else {}
+        before = json.dumps(data.get("mcpServers") or {}, sort_keys=True)
         servers = data.setdefault("mcpServers", {})
         change(servers)
+        if json.dumps(servers, sort_keys=True) == before or not (existed or servers):
+            # Nothing to change. Claude Code rewrites this file itself, so it is only touched when it has to
+            # be, and taking an entry out never creates a config file that wasn't there
+            return True
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".androidbox.tmp")
         temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")

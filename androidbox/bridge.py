@@ -43,19 +43,44 @@ class Bridge:
 
     def deliver(self):
         while not self.closed:
+            live = threading.Event()
+            live.set()
             try:
                 if self.one_by_one:
                     self.deliver_one_by_one()
                 else:
-                    self.stub.streamInputEvent(iter(self.outbox.get, None), metadata=self.metadata)
+                    self.stub.streamInputEvent(self.pending(live), metadata=self.metadata)
             except grpc.RpcError as error:
                 if error.code() == grpc.StatusCode.UNIMPLEMENTED and not self.one_by_one:
                     self.one_by_one = True
-                    # The refused stream may have a thread still waiting on the outbox: this wakes it
-                    # so it can't swallow the first real event
-                    self.outbox.put(None)
                 else:
                     time.sleep(0.5)
+            except ValueError:
+                # gRPC's way of saying the channel was closed between the check above and the call
+                if self.closed:
+                    return
+                raise
+            finally:
+                live.clear()
+
+    def pending(self, live):
+        """The events for one go at the input stream. gRPC reads them on a thread of its own that outlives a
+        stream which failed, and left waiting on the outbox it would swallow the next tap or key. So it only
+        waits a moment at a time, stops once its stream is over, and hands back an event it took too late"""
+        while live.is_set() and not self.closed:
+            try:
+                event = self.outbox.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if event is None:
+                return
+            if not live.is_set():
+                # Back at the front, so a press can't end up after its own release
+                with self.outbox.mutex:
+                    self.outbox.queue.appendleft(event)
+                    self.outbox.not_empty.notify()
+                return
+            yield event
 
     def deliver_one_by_one(self):
         calls = {"key_event": self.stub.sendKey, "touch_event": self.stub.sendTouch,

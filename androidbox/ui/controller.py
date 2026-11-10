@@ -118,7 +118,8 @@ class Controller(QObject):
             # Only a game that has been asked for is looked for, every few checks, once Android has had time to
             # open it by itself
             keep = self.instance.keep_running
-            missing = phase == "on" and bool(keep) and self.ticks % 4 == 0 and time.monotonic() - self.ready_at > 90                 and not self.emulator.app_running(keep)
+            missing = phase == "on" and bool(keep) and self.ticks % 4 == 0 and time.monotonic() - self.ready_at > 90 \
+                and not self.emulator.app_running(keep)
             return phase, package, token, self.emulator.usage() if phase == "on" else None, missing
         except OSError:
             return self.phase, self.package, None, None, False

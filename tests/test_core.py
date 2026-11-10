@@ -493,5 +493,138 @@ class LegacyEmulatorTests(unittest.TestCase):
         self.assertEqual(installer.usable_ram("36", 8192), 8192)
 
 
+class Regressions(unittest.TestCase):
+    def test_no_class_defines_the_same_method_twice(self):
+        # The second definition silently replaces the first: force_stop(package) once hid the force_stop()
+        # that ends a hung emulator, so stopping one raised instead
+        import ast
+        for path in (ROOT / "androidbox").rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.ClassDef):
+                    names = [item.name for item in node.body if isinstance(item, ast.FunctionDef)
+                             and not item.decorator_list]
+                    twice = sorted({name for name in names if names.count(name) > 1})
+                    self.assertEqual(twice, [], f"{path.name}: {node.name}")
+
+    def test_ending_the_emulator_and_stopping_an_app_are_separate(self):
+        import inspect
+        self.assertEqual(list(inspect.signature(emulator.Emulator.kill).parameters), ["self"])
+        self.assertEqual(list(inspect.signature(emulator.Emulator.force_stop).parameters), ["self", "package"])
+
+    def test_a_macro_cannot_be_renamed_out_of_its_folder(self):
+        macros.write({"name": "Escape me", "duration": 0.0, "events": []})
+        renamed = macros.update("Escape me", name="..\\..\\outside")
+        self.assertNotIn("\\", renamed["name"])
+        self.assertEqual(macros.file(renamed["name"]).parent, macros.file("x").parent)
+        macros.delete(renamed["name"])
+
+    def test_files_that_are_not_macros_are_left_out(self):
+        folder = macros.file("x").parent
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "stray.json").write_text("[1, 2, 3]")
+        (folder / "nameless.json").write_text('{"events": []}')
+        macros.forget()
+        self.assertTrue(all(isinstance(macro, dict) and "name" in macro for macro in macros.load()))
+        for name in ("stray", "nameless"):
+            (folder / f"{name}.json").unlink()
+        macros.forget()
+
+    def test_an_empty_macro_set_to_repeat_for_ever_ends_at_once(self):
+        done = threading.Event()
+        macros.Player(None, {"events": [], "gap": 0.0}, loops=0, on_done=done.set)
+        self.assertTrue(done.wait(5))
+
+    def test_a_damaged_macro_still_reports_that_it_ended(self):
+        class Broken:
+            def replay(self, payload):
+                raise ValueError("not an input event")
+
+        done = threading.Event()
+        hook, threading.excepthook = threading.excepthook, lambda args: None
+        try:
+            macros.Player(Broken(), {"events": [[0.0, base64.b64encode(b"junk").decode()]]}, on_done=done.set)
+            self.assertTrue(done.wait(5))
+        finally:
+            threading.excepthook = hook
+
+    def test_a_download_cut_short_is_an_error_that_keeps_what_arrived(self):
+        from unittest import mock
+        from androidbox import installer
+
+        class Response:
+            status = 200
+
+            def __init__(self):
+                self.chunks = [b"abc", b""]
+
+            def read(self, amount):
+                return self.chunks.pop(0)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *details):
+                return False
+
+        package = installer.Package("the test", installer.REPOSITORY + "file.zip", 10, "", "", Path("x"))
+        partial = Path(tempfile.mkdtemp()) / "file.part"
+        with mock.patch("urllib.request.urlopen", return_value=Response()):
+            with self.assertRaises(OSError):
+                installer.fetch(package.url, partial, 0, package, lambda *progress: None)
+        self.assertEqual(partial.read_bytes(), b"abc")
+
+    def test_a_layout_always_has_four_direction_keys(self):
+        from androidbox import keymap
+        self.assertEqual(keymap.parse([{"kind": "joystick", "x": 0.5, "y": 0.5, "keys": ["W"]}])[0].keys,
+                         ["W", "", "", ""])
+        self.assertEqual(keymap.Control("tilt", 0.1, 0.5, keys=["", "A", "", "D"]).keys, ["", "A", "", "D"])
+        engine = keymap.Engine()
+        engine.use(keymap.parse([{"kind": "joystick", "x": 0.5, "y": 0.5, "keys": ["W"]}]))
+        self.assertTrue(engine.press("W", True, 100, 100))
+
+    def test_a_damaged_instance_entry_does_not_stop_the_rest_loading(self):
+        import json
+        from androidbox import paths
+        good = {"id": "boxgood", "name": "Good", "slot": 1}
+        paths.write_text(paths.INSTANCES, json.dumps([good, {"id": "boxbad"}, "nonsense", {**good, "slot": 99}]))
+        self.assertEqual([instance.id for instance in instances.load()], ["boxgood"])
+        paths.INSTANCES.unlink()
+
+    def test_claude_config_is_only_rewritten_when_it_changes(self):
+        import json
+        config = Path(tempfile.mkdtemp()) / "claude.json"
+        self.assertTrue(claude.edit_config(lambda servers: servers.pop("androidbox", None), config))
+        self.assertFalse(config.exists())
+        entry = {"command": "python"}
+        self.assertTrue(claude.edit_config(lambda servers: servers.__setitem__("androidbox", entry), config))
+        self.assertEqual(json.loads(config.read_text())["mcpServers"], {"androidbox": entry})
+        config.write_text(config.read_text() + "\n\n")
+        written = config.read_bytes()
+        self.assertTrue(claude.edit_config(lambda servers: servers.__setitem__("androidbox", dict(entry)), config))
+        self.assertEqual(config.read_bytes(), written)
+
+    def test_an_input_stream_that_ended_hands_its_event_back(self):
+        import queue
+        from androidbox.bridge import Bridge
+        bridge = Bridge.__new__(Bridge)
+        bridge.outbox, bridge.closed = queue.Queue(), False
+        live = threading.Event()
+        live.set()
+        events = bridge.pending(live)
+        bridge.outbox.put("first")
+        self.assertEqual(next(events), "first")
+        live.clear()
+        bridge.outbox.put("second")
+        self.assertEqual(list(events), [])
+        self.assertEqual(bridge.outbox.get_nowait(), "second")
+
+    def test_the_log_is_searched_for_every_known_problem(self):
+        from androidbox import diagnostics
+        log = "ok\n  E AndroidRuntime: FATAL EXCEPTION: main\nI ActivityManager: ANR in com.game\nfine"
+        found = diagnostics.findings(log)
+        self.assertEqual([title for title, _, _ in found], ["App crash", "App not responding"])
+        self.assertEqual(found[0][2], ["E AndroidRuntime: FATAL EXCEPTION: main"])
+
+
 if __name__ == "__main__":
     unittest.main()

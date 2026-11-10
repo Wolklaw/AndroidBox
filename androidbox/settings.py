@@ -46,5 +46,4 @@ def save(values, key):
     if key in PROFILE:
         profiles.write_json(profile_file(), {name: values[name] for name in PROFILE})
     else:
-        paths.SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-        paths.SETTINGS.write_text(json.dumps({name: values[name] for name in LOCAL}, indent=2))
+        paths.write_text(paths.SETTINGS, json.dumps({name: values[name] for name in LOCAL}, indent=2))

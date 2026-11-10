@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 import shutil
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -227,6 +228,10 @@ def fetch(address, partial, have, package, progress):
                 file.write(chunk)
                 have += len(chunk)
                 progress(package, have, package.size, "download")
+    if have < package.size:
+        # A connection that closes early just reads as the end of the file. Said out loud, what arrived is
+        # kept and carried on from, where the checksum would fail and throw all of it away
+        raise OSError(f"The connection dropped while downloading {package.label}")
     return have
 
 
@@ -243,7 +248,7 @@ def download(package, progress):
             have = fetch(address, partial, have, package, progress)
             error = None
             break
-        except OSError as problem:
+        except (OSError, http.client.HTTPException) as problem:
             # Whatever arrived is kept, so the next source carries on from there
             error = error or problem
             have = partial.stat().st_size if partial.exists() else 0

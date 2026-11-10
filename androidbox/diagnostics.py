@@ -22,6 +22,7 @@ FINDINGS = [
     ("Missing Play certification", ("not Play Protect certified", "DEVICE_NOT_CERTIFIED"),
      "Google doesn't consider this image certified. Redownloading the image in Settings sometimes fixes it."),
 ]
+SIGNATURES = re.compile("|".join(re.escape(needle) for _, needles, _ in FINDINGS for needle in needles))
 LOG_COMMANDS = {
     "logcat.txt": ("logcat", "-d", "-b", "all", "-v", "threadtime"),
     "properties.txt": ("shell", "getprop"),
@@ -31,18 +32,21 @@ LOG_COMMANDS = {
 
 
 def findings(logcat):
-    found = []
-    for title, needles, advice in FINDINGS:
-        lines = [line.strip() for line in logcat.splitlines() if any(needle in line for needle in needles)]
-        if lines:
-            found.append((title, advice, lines))
-    return found
+    # The log can run to tens of megabytes, so one regex pass over it finds every signature at once
+    matches = {title: [] for title, _, _ in FINDINGS}
+    for line in logcat.splitlines():
+        if SIGNATURES.search(line):
+            for title, needles, _ in FINDINGS:
+                if any(needle in line for needle in needles):
+                    matches[title].append(line.strip())
+    return [(title, advice, matches[title]) for title, _, advice in FINDINGS if matches[title]]
 
 
-def summary(instance, running, logcat):
+def summary(instance, running, logcat, found=None):
     lines = [f"Androidbox {VERSION} on {platform.platform()}", f"Instance: {instance.name} ({instance.id}), "
              f"{instance.android}, {'running' if running else 'not running'}", ""]
-    found = findings(logcat) if logcat else []
+    if found is None:
+        found = findings(logcat) if logcat else []
     if not logcat:
         lines.append("No device log: Android wasn't running when this was collected.")
     elif not found:
@@ -64,8 +68,9 @@ def collect(emulator, destination):
             if code == 0 or output:
                 outputs[name] = output
     logcat = outputs.get("logcat.txt", "")
+    found = findings(logcat) if logcat else []
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as bundle:
-        bundle.writestr("summary.txt", summary(instance, running, logcat))
+        bundle.writestr("summary.txt", summary(instance, running, logcat, found))
         for name, text in outputs.items():
             bundle.writestr(name, text)
         # A proxy address can carry a login, and this file is meant to be shared
@@ -76,4 +81,4 @@ def collect(emulator, destination):
                 bundle.write(path, name)
             except OSError:
                 pass
-    return len(findings(logcat))
+    return len(found)

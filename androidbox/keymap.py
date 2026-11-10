@@ -27,6 +27,10 @@ class Control:
     y2: float = None
     macro: str = ""
 
+    def __post_init__(self):
+        # Always four, whatever a hand-edited or imported layout says: each direction is looked up by its place
+        self.keys = [str(key or "") for key in [*self.keys, "", "", "", ""][:4]]
+
     def label(self):
         if self.kind in FOUR_KEYS:
             return " ".join(key for key in self.keys if key)
