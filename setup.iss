@@ -37,7 +37,9 @@ SolidCompression=yes
 OutputDir=dist
 OutputBaseFilename=Androidbox-Setup-{#AppVersion}
 AppMutex=Local\Androidbox,Local\DroidCore
-CloseApplications=yes
+; AppMutex already stops Setup while Androidbox runs. Restart Manager's "close these applications" check also
+; listed unrelated programs such as Chrome and blocked updates, so it is off
+CloseApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
