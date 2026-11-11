@@ -18,6 +18,17 @@ AD_BLOCKING_DNS = "dns.adguard-dns.com"
 ADB_SERVER_PORT = "5137"
 QUICK_BOOT_LIMIT = 45
 APP_PACKAGES = {".apk", ".apks", ".xapk", ".apkm"}
+# The Android 4.1 guest's only input device is the emulator's keyboard, and the kernel drops any key it
+# didn't declare, which includes the Linux gamepad codes (BTN_A and friends). It does declare these spare
+# scancodes, so the guest's key layout is told they are the gamepad buttons, and they are sent instead
+PAD_SCANCODES = {
+    "Pad A": (432, "BUTTON_A"), "Pad B": (433, "BUTTON_B"), "Pad X": (434, "BUTTON_X"), "Pad Y": (435, "BUTTON_Y"),
+    "Pad LB": (436, "BUTTON_L1"), "Pad RB": (437, "BUTTON_R1"), "Pad LT": (438, "BUTTON_L2"),
+    "Pad RT": (439, "BUTTON_R2"), "Pad Back": (440, "BUTTON_SELECT"), "Pad Start": (441, "BUTTON_START"),
+    "Pad LS": (442, "BUTTON_THUMBL"), "Pad RS": (443, "BUTTON_THUMBR"),
+}
+GUEST_LAYOUT = "/system/usr/keylayout/Generic.kl"
+GUEST_LAYOUT_COPY = "/data/local/tmp/Generic.kl"
 
 
 def ad_blocking_reachable(timeout=4):
@@ -386,6 +397,31 @@ class Emulator:
                               " && settings put global private_dns_mode hostname")
         else:
             self.adb("shell", "settings put global private_dns_mode opportunistic")
+
+    def map_gamepad(self):
+        # /system is read-only, so a copy of the guest's key layout with the gamepad scancodes added is laid
+        # over it, and Android's input is restarted to read it. It is gone after a full boot, so this is
+        # checked every time the guest comes up
+        code, mounts = self.adb("shell", "cat", "/proc/mounts", timeout=10)
+        if code != 0 or GUEST_LAYOUT in mounts:
+            return
+        lines = " && ".join(f"echo 'key {scancode} {name}' >> {GUEST_LAYOUT_COPY}"
+                            for scancode, name in PAD_SCANCODES.values())
+        code, _ = self.adb("shell", f"cat {GUEST_LAYOUT} > {GUEST_LAYOUT_COPY} && {lines}"
+                                    f" && mount -o bind {GUEST_LAYOUT_COPY} {GUEST_LAYOUT} && stop && start", timeout=60)
+        if code != 0:
+            return
+        # sys.boot_completed stays at 1 through the restart, so wait for a window to have focus again
+        deadline = time.monotonic() + 90
+        time.sleep(3)
+        while time.monotonic() < deadline and "mCurrentFocus=Window{" not in self.adb("shell", "dumpsys", "window")[1]:
+            time.sleep(2)
+
+    def raw_key(self, scancode, down):
+        # The emulator's console can hand the guest a raw Linux key event, which gRPC's raw key codes don't
+        # reach on this old emulator
+        with contextlib.suppress(OSError):
+            self.console(f"event send EV_KEY:{scancode}:{int(down)}\r\nevent send EV_SYN:0:0")
 
     def keep_awake(self):
         self.adb("shell", "svc power stayon true && input keyevent KEYCODE_WAKEUP")

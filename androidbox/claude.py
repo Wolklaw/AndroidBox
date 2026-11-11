@@ -100,11 +100,32 @@ def online():
     return {line.split()[0] for line in out.splitlines()[1:] if line.strip().endswith("device")}
 
 
+def running_ports():
+    # The emulator records which instance is on which port while it runs. That is the truth: the port an
+    # instance was given by the build that started it needn't be the one its slot in instances.json suggests
+    ports = {}
+    for folder in {Path(tempfile.gettempdir()) / "avd" / "running",
+                   Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Temp" / "avd" / "running"}:
+        for ini in folder.glob("pid_*.ini"):
+            try:
+                values = dict(line.split("=", 1) for line in ini.read_text().splitlines() if "=" in line)
+            except OSError:
+                continue
+            if values.get("avd.id") and values.get("port.serial", "").isdigit():
+                ports[values["avd.id"]] = int(values["port.serial"])
+    return ports
+
+
 def instances():
-    found = []
+    found, ports = [], running_ports()
     for entry in read(HOME / "data" / "instances.json", []):
-        port = CONSOLE_PORTS[entry["slot"]]
-        found.append({"id": entry["id"], "name": entry["name"], "serial": f"emulator-{port}"})
+        port = ports.get(entry["id"]) or CONSOLE_PORTS[entry["slot"]]
+        if entry["id"] not in ports and port in ports.values():
+            # Not running, and its usual port belongs to another instance right now
+            serial = f"stopped-{entry['id']}"
+        else:
+            serial = f"emulator-{port}"
+        found.append({"id": entry["id"], "name": entry["name"], "serial": serial})
     return found
 
 
@@ -144,9 +165,34 @@ def resolve(name):
                   + ", ".join(item["name"] for item in live))
 
 
+def pulled(serial, remote):
+    # Android 4.1's adb daemon has no exec-out ("error: closed"), so the file is copied across instead
+    with tempfile.TemporaryDirectory() as folder:
+        target = Path(folder) / "file"
+        adb(serial, "pull", remote, str(target))
+        return target.read_bytes()
+
+
+def screenshot(serial):
+    try:
+        png = adb(serial, "exec-out", "screencap", "-p", binary=True)
+        if png.startswith(b"\x89PNG"):
+            return png
+    except Problem:
+        pass
+    adb(serial, "shell", "screencap", "-p", "/sdcard/androidbox-shot.png")
+    try:
+        return pulled(serial, "/sdcard/androidbox-shot.png")
+    finally:
+        adb(serial, "shell", "rm", "/sdcard/androidbox-shot.png", check=False)
+
+
 def screen_xml(serial):
     adb(serial, "shell", "uiautomator", "dump", "/sdcard/androidbox-ui.xml")
-    return adb(serial, "exec-out", "cat", "/sdcard/androidbox-ui.xml")
+    try:
+        return adb(serial, "exec-out", "cat", "/sdcard/androidbox-ui.xml")
+    except Problem:
+        return pulled(serial, "/sdcard/androidbox-ui.xml").decode(errors="replace")
 
 
 def screen_nodes(serial):
@@ -179,7 +225,7 @@ def tool_list_instances(arguments):
 
 def tool_screenshot(arguments):
     serial = resolve(arguments.get("instance"))
-    png = adb(serial, "exec-out", "screencap", "-p", binary=True)
+    png = screenshot(serial)
     return [{"type": "image", "data": base64.b64encode(png).decode(), "mimeType": "image/png"}]
 
 
@@ -513,7 +559,7 @@ def run(command, arguments):
     serial = pick(arguments)
     if command == "shot":
         target = Path(arguments[0] if arguments else "androidbox-shot.png").resolve()
-        target.write_bytes(adb(serial, "exec-out", "screencap", "-p", binary=True))
+        target.write_bytes(screenshot(serial))
         print(target)
     elif command == "ui":
         for node in screen_nodes(serial):

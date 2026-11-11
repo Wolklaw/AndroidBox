@@ -221,6 +221,15 @@ class Controller(QObject):
         self.ready_at = time.monotonic()
         self.applied_fps = None
         self.refresh_frame_rate()
+        if self.instance.api == installer.LEGACY_API:
+            # Giving the guest gamepad buttons restarts Android's input, so everything else waits for it
+            background(self.emulator.map_gamepad, lambda _: self.finish_ready(), lambda _: self.finish_ready())
+        else:
+            self.finish_ready()
+
+    def finish_ready(self):
+        if not self.on:
+            return
         background(self.emulator.keep_awake)
         if self.instance.block_ads:
             background(lambda: self.emulator.block_ads(True))

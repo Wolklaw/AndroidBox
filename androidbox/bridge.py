@@ -118,13 +118,6 @@ class Bridge:
         # The character itself, so the emulator doesn't map it through a US keyboard layout
         self.send(pb.InputEvent(key_event=pb.KeyboardEvent(text=text, eventType=KEYPRESS)))
 
-    def button(self, code, down):
-        # A raw Linux evdev button code (BTN_A and friends), for guests old enough to have a
-        # goldfish input device that understands them as real gamepad buttons, not Androidbox's
-        # usual GoBack/GoHome-style navigation keys
-        self.send(pb.InputEvent(key_event=pb.KeyboardEvent(
-            keyCode=code, codeType=pb.KeyboardEvent.Evdev, eventType=KEYDOWN if down else KEYUP)))
-
     def type(self, text):
         self.send(pb.InputEvent(key_event=pb.KeyboardEvent(text=text)))
 

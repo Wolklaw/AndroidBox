@@ -6,7 +6,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QWidget
 
-from .. import gamepad, installer, keymap, macros
+from .. import emulator, gamepad, installer, keymap, macros
 from ..bridge import KEYDOWN, KEYUP
 from .theme import COLORS
 from .widgets import button, text_font
@@ -63,15 +63,10 @@ PAD_KEYS = {
     "Pad Up": "ArrowUp", "Pad Down": "ArrowDown", "Pad Left": "ArrowLeft", "Pad Right": "ArrowRight",
 }
 
-# Linux evdev button codes (BTN_A and friends). Only the emulator's old "goldfish" input device,
-# which Androidbox's legacy OUYA/GameStick image uses, understands these as real gamepad buttons;
-# the modern images it otherwise runs don't, so there every pad button keeps acting like a remote
-# (Pad A opens, Pad B goes back) instead
-GAMEPAD_CODES = {
-    "Pad A": 0x130, "Pad B": 0x131, "Pad X": 0x133, "Pad Y": 0x134,
-    "Pad LB": 0x136, "Pad RB": 0x137, "Pad LT": 0x138, "Pad RT": 0x139,
-    "Pad Back": 0x13a, "Pad Start": 0x13b, "Pad LS": 0x13d, "Pad RS": 0x13e,
-}
+# Real gamepad buttons (BUTTON_A and friends) for the legacy OUYA/GameStick image, as the scancodes its
+# key layout is given (see emulator.PAD_SCANCODES); the modern images it otherwise runs don't take them,
+# so there every pad button keeps acting like a remote (Pad A opens, Pad B goes back) instead
+GAMEPAD_CODES = {name: scancode for name, (scancode, _) in emulator.PAD_SCANCODES.items()}
 
 MOUSE_BUTTONS = {Qt.MouseButton.LeftButton: "Mouse Left", Qt.MouseButton.RightButton: "Mouse Right"}
 
@@ -274,6 +269,8 @@ class PhoneView(QWidget):
         self.pad_pressed = set()
         self.pad_left = (0.0, 0.0)
         self.pad_looking = False
+        self.pad_events = queue.Queue()
+        threading.Thread(target=self.send_pad_events, daemon=True).start()
 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAcceptDrops(True)
@@ -712,11 +709,17 @@ class PhoneView(QWidget):
         if self.controller.instance.api == installer.LEGACY_API:
             code = GAMEPAD_CODES.get(name)
             if code is not None:
-                self.bridge.button(code, down)
+                self.pad_events.put((self.controller.emulator, code, down))
                 return
         key = PAD_KEYS.get(name)
         if key:
             self.bridge.key(key, KEYDOWN if down else KEYUP)
+
+    def send_pad_events(self):
+        # One at a time and in order, off the UI thread: each goes through the emulator's console
+        while True:
+            target, code, down = self.pad_events.get()
+            target.raw_key(code, down)
 
     def focusNextPrevChild(self, forward):
         return False

@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -46,6 +47,24 @@ class Updates(unittest.TestCase):
 class Helper(unittest.TestCase):
     def setUp(self):
         self.helper = load_helper()
+
+    def test_instances_use_the_port_the_emulator_reports_not_the_slot_port(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            (home / "data").mkdir()
+            (home / "data" / "instances.json").write_text(
+                '[{"id": "boxa", "name": "A", "slot": 1}, {"id": "boxb", "name": "B", "slot": 2}]')
+            running = home / "avd" / "running"
+            running.mkdir(parents=True)
+            (running / "pid_1.ini").write_text("avd.id=boxa\nport.serial=5584\n")
+            helper = self.helper
+            helper["HOME"] = home
+            helper["tempfile"] = types.SimpleNamespace(gettempdir=lambda: str(home))
+            helper["os"] = types.SimpleNamespace(environ={"LOCALAPPDATA": str(home)}, path=os.path)
+            serials = {item["name"]: item["serial"] for item in helper["instances"]()}
+        self.assertEqual(serials["A"], "emulator-5584")
+        # B's own port is taken by A, and B isn't running, so it can't claim that port
+        self.assertNotEqual(serials["B"], "emulator-5584")
 
     def test_every_tool_is_dispatched(self):
         names = {tool["name"] for tool in self.helper["TOOLS"]}
@@ -663,3 +682,12 @@ class TypedTextTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_legacy_gamepad_scancodes_are_distinct_and_cover_every_pad_button():
+    from androidbox import emulator
+    from androidbox.ui import phone
+    codes = [code for code, _ in emulator.PAD_SCANCODES.values()]
+    assert len(set(codes)) == len(codes)
+    assert all(name.startswith("BUTTON_") for _, name in emulator.PAD_SCANCODES.values())
+    assert phone.GAMEPAD_CODES == {name: code for name, (code, _) in emulator.PAD_SCANCODES.items()}
