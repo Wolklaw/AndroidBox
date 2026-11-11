@@ -473,13 +473,14 @@ Games on PC if the publisher supports it.
 </details>
 
 <details>
-<summary><b>I have an app called DroidCore, and it never offers me an update</b></summary>
+<summary><b>I have an app called DroidCore, and it only sends me to a download page</b></summary>
 
-DroidCore 1.9.0 and 1.9.1 were Androidbox under a short-lived name. Those copies only look for versions
-above 1.9.1, so they missed everything released after the name went back. Download the newest
-[Androidbox installer](https://github.com/Wolklaw/Androidbox/releases/latest) and run it once. It replaces
-DroidCore in place, moves your instances, profiles and Android images back to the Androidbox folder, and
-brings over the start-with-Windows setting and the Claude Code registration. Updates arrive on their own after that.
+DroidCore 1.9.0 and 1.9.1 were Androidbox under a short-lived name. They can tell that a newer version exists,
+but they can't install it themselves, so they open the release page instead. Download the
+[Androidbox installer](https://github.com/Wolklaw/Androidbox/releases/latest) from there and run it once. It
+replaces DroidCore in place, so DroidCore disappears and Androidbox takes its place in the Start menu. It moves
+your instances, profiles and Android images back to the Androidbox folder, and brings over the start-with-Windows
+setting and the Claude Code registration. Updates arrive on their own after that.
 
 </details>
 
