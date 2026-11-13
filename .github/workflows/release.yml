@@ -89,7 +89,7 @@ jobs:
           # The newest release's tag may not be in this checkout, and then there is nothing to compare against
           if ($previous) { git rev-parse --verify --quiet "refs/tags/$previous" *> $null; if ($LASTEXITCODE -ne 0) { $previous = $null } }
           $range = if ($previous) { "$previous..HEAD" } else { "HEAD" }
-          $changes = (git log $range --no-merges --format="- %s" | Out-String).Trim()
+          $changes = (git log $range --no-merges --invert-grep --grep="^Bump version" --format="- %s" | Out-String).Trim()
           # The app shows only the first 600 characters, and copies still running as DroidCore need this most
           $notes = "Press Download, then open the installer from the page. Your instances and settings are kept.`n`n$changes"
           Set-Content -Path notes.md -Value $notes -Encoding utf8

@@ -44,6 +44,22 @@ class Updates(unittest.TestCase):
         self.assertTrue(updates.Release("2.0", "page", url="u", size=1, sha256="x").installable)
 
 
+class ReleaseNotes(unittest.TestCase):
+    def test_page_instructions_are_left_out_of_the_app(self):
+        body = "Press Download, then open the installer. Settings are kept.\n\n- One\n- Two"
+        self.assertEqual(updates.tidy_notes(body), "- One\n- Two")
+
+    def test_notes_without_instructions_are_kept(self):
+        self.assertEqual(updates.tidy_notes("- One\n- Two"), "- One\n- Two")
+
+    def test_long_notes_are_cut_between_changes(self):
+        body = "\n".join(f"- Change number {n} " + "x" * 40 for n in range(40))
+        cut = updates.tidy_notes(body)
+        self.assertLessEqual(len(cut), updates.NOTES_LIMIT + 2)
+        self.assertTrue(cut.endswith("\n…"))
+        self.assertTrue(cut.splitlines()[-2].endswith("x" * 40))
+
+
 class Helper(unittest.TestCase):
     def setUp(self):
         self.helper = load_helper()

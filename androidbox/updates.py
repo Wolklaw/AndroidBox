@@ -12,6 +12,8 @@ RELEASES = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 DOWNLOADS = f"https://github.com/{REPOSITORY}/releases/download/"
 INSTALLER = re.compile(r"^Androidbox-Setup-\d+(\.\d+)*\.exe$")
 NOTES_LIMIT = 600
+# The first paragraph of every release page tells people on an old copy how to download; the app already does that
+PAGE_INSTRUCTIONS = "Press Download"
 CHUNK = 1 << 18
 
 
@@ -47,9 +49,21 @@ def latest():
     asset = assets[0] if assets else {}
     digest = asset.get("digest") or ""
     return Release(version=release["tag_name"].lstrip("v"), page=release["html_url"],
-                   notes=(release.get("body") or "").strip()[:NOTES_LIMIT], name=asset.get("name", ""),
+                   notes=tidy_notes(release.get("body") or ""), name=asset.get("name", ""),
                    url=asset.get("browser_download_url", ""), size=asset.get("size", 0),
                    sha256=digest.removeprefix("sha256:") if digest.startswith("sha256:") else "")
+
+
+def tidy_notes(body):
+    """The release notes as the app shows them: without the download instructions meant for the release page,
+    and cut between two changes rather than half way through one"""
+    text = body.replace("\r\n", "\n").strip()
+    first, _, rest = text.partition("\n\n")
+    if first.startswith(PAGE_INSTRUCTIONS) and rest:
+        text = rest.strip()
+    if len(text) <= NOTES_LIMIT:
+        return text
+    return text[:NOTES_LIMIT].rsplit("\n", 1)[0] + "\n…"
 
 
 def newer(version):
