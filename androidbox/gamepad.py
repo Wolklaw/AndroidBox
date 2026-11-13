@@ -1,10 +1,12 @@
 import ctypes
+import time
 import warnings
 from ctypes import wintypes
 
 DEADZONE = 0.22
 TRIGGER = 0.25
-RESCAN_TICKS = 60
+RESCAN_SECONDS = 1.0
+SAME_READING = 0.008
 
 XINPUT_BUTTONS = {
     0x0001: "Pad Up", 0x0002: "Pad Down", 0x0004: "Pad Left", 0x0008: "Pad Right",
@@ -116,13 +118,14 @@ class XInputPads:
             except OSError:
                 continue
         self.connected = set()
-        self.ticks = 0
+        self.scanned = float("-inf")
         self.state = XInputState()
 
     def scan(self):
         # Asking for a controller that isn't plugged in is slow, so look for new ones only now and then
-        self.ticks += 1
-        if self.ticks % RESCAN_TICKS == 1:
+        now = time.monotonic()
+        if now - self.scanned >= RESCAN_SECONDS:
+            self.scanned = now
             self.connected |= {index for index in range(4) if self.read(index, ctypes.byref(self.state)) == 0}
 
     def poll(self):
@@ -144,8 +147,32 @@ class XInputPads:
         return merged(states) if states else None
 
 
+class SharedPads:
+    """One set of controllers for every view that wants them. SDL has a single event queue, so a second handler
+    in a pop-out window would take hot-plug events away from the first, and each would start SDL again"""
+
+    def __init__(self, pads):
+        self.pads = pads
+        self.polled = float("-inf")
+        self.state = None
+
+    def poll(self):
+        # Two views asking within a few milliseconds get the same reading
+        now = time.monotonic()
+        if now - self.polled >= SAME_READING:
+            self.polled = now
+            self.state = self.pads.poll()
+        return self.state
+
+
+shared = None
+
+
 def open_gamepads():
-    try:
-        return SdlPads()
-    except (ImportError, OSError):
-        return XInputPads()
+    global shared
+    if shared is None:
+        try:
+            shared = SharedPads(SdlPads())
+        except (ImportError, OSError):
+            shared = SharedPads(XInputPads())
+    return shared

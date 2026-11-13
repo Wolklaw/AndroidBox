@@ -6,6 +6,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import zipfile
 from pathlib import Path
@@ -119,6 +120,8 @@ class Emulator:
         self.process = None
         self.quick_boot = False
         self.started = 0.0
+        self.pad_lock = threading.Lock()
+        self.pad_console = None
 
     @property
     def lock(self):
@@ -227,8 +230,8 @@ class Emulator:
         for ini in (file for folder in paths.DISCOVERY for file in folder.glob("pid_*.ini")):
             try:
                 pid = int(ini.stem.removeprefix("pid_"))
-                values = dict(line.split("=", 1) for line in ini.read_text().splitlines() if "=" in line)
                 modified = ini.stat().st_mtime
+                values = discovery_values(ini, modified)
             except (OSError, ValueError):
                 continue
             if values.get("port.serial") == str(self.instance.console_port) and "grpc.token" in values \
@@ -237,6 +240,7 @@ class Emulator:
         return max(found)[1] if found else None
 
     def stop(self):
+        self.close_pad_console()
         since = self.log_size()
         try:
             self.console("kill")
@@ -419,9 +423,46 @@ class Emulator:
 
     def raw_key(self, scancode, down):
         # The emulator's console can hand the guest a raw Linux key event, which gRPC's raw key codes don't
-        # reach on this old emulator
-        with contextlib.suppress(OSError):
-            self.console(f"event send EV_KEY:{scancode}:{int(down)}\r\nevent send EV_SYN:0:0")
+        # reach on this old emulator. One connection is kept for these, as a new one for every button press
+        # and release added its own delay to the controller
+        command = f"event send EV_KEY:{scancode}:{int(down)}\r\nevent send EV_SYN:0:0\r\n".encode()
+        with self.pad_lock:
+            for _ in range(2):
+                try:
+                    if self.pad_console is None:
+                        self.pad_console = self.open_pad_console()
+                    self.pad_console.sendall(command)
+                    return
+                except OSError:
+                    self.close_pad_console()
+
+    def open_pad_console(self):
+        token = paths.CONSOLE_TOKEN.read_text().strip()
+        connection = socket.create_connection(("127.0.0.1", self.instance.console_port), timeout=5)
+        # Connecting is bounded, but this then sits quietly between button presses, which isn't a timeout
+        connection.settimeout(None)
+        connection.sendall(f"auth {token}\r\n".encode())
+
+        def drain():
+            # The console answers every command, and answers nobody reads would pile up
+            try:
+                while connection.recv(4096):
+                    pass
+            except OSError:
+                pass
+            with self.pad_lock:
+                if self.pad_console is connection:
+                    self.pad_console = None
+            connection.close()
+
+        threading.Thread(target=drain, daemon=True).start()
+        return connection
+
+    def close_pad_console(self):
+        connection, self.pad_console = self.pad_console, None
+        if connection:
+            with contextlib.suppress(OSError):
+                connection.close()
 
     def keep_awake(self):
         self.adb("shell", "svc power stayon true && input keyevent KEYCODE_WAKEUP")
@@ -537,6 +578,20 @@ class Emulator:
             return False
         shutil.move(self.recording, destination)
         return True
+
+
+DISCOVERY_CACHE = {}
+
+
+def discovery_values(ini, modified):
+    """What an emulator's discovery file says. It is looked at every second or two for as long as an instance
+    runs, and only changes when the emulator rewrites it, so it is read again only when its time stamp moves"""
+    cached = DISCOVERY_CACHE.get(ini)
+    if cached and cached[0] == modified:
+        return cached[1]
+    values = dict(line.split("=", 1) for line in ini.read_text().splitlines() if "=" in line)
+    DISCOVERY_CACHE[ini] = (modified, values)
+    return values
 
 
 def process_alive(pid):

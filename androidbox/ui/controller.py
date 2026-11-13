@@ -37,6 +37,8 @@ class Controller(QObject):
     macros_changed = Signal()
     image_missing = Signal()
     notify = Signal(str, str)
+    # Set by the window while it is hidden in the tray, for every controller at once
+    relaxed = False
 
     def __init__(self, instance, all_instances):
         super().__init__()
@@ -93,13 +95,18 @@ class Controller(QObject):
     def save(self):
         instances.save(self.all_instances)
 
+    def nudge(self):
+        # The next check looks at the foreground app, so a window brought back doesn't show a stale game
+        self.ticks = 1
+
     def poll(self):
         if self.checking:
             return
         self.checking = True
         self.ticks += 1
         epoch = self.epoch
-        wants_package = self.ticks % 2 == 0
+        # Hidden in the tray nobody is looking, and the foreground check costs a whole adb process
+        wants_package = self.ticks % (10 if Controller.relaxed else 2) == 0
         background(lambda: self.check(wants_package), lambda result: self.apply(*result, epoch))
 
     def check(self, wants_package):
@@ -114,7 +121,9 @@ class Controller(QObject):
             package = self.package
             if phase == "on" and wants_package:
                 package = self.emulator.foreground_app() or package
-            token = self.emulator.grpc_token() if phase in ("booting", "on") else None
+            # Once attached the token only changes with a restart, which shows up as the emulator going away
+            looking = phase == "booting" or (phase == "on" and (not self.token or self.ticks % 4 == 0))
+            token = self.emulator.grpc_token() if looking else None
             # Only a game that has been asked for is looked for, every few checks, once Android has had time to
             # open it by itself
             keep = self.instance.keep_running
@@ -165,7 +174,7 @@ class Controller(QObject):
         elif missing:
             self.relaunch()
         if phase == "on":
-            if self.ticks % 6 == 0:
+            if self.ticks % 6 == 0 and not Controller.relaxed:
                 self.refresh_thumb()
         elif self.thumb:
             self.thumb = None

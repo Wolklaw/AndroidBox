@@ -139,7 +139,9 @@ class Bridge:
             return None, None
         return view, pb.ImageTransport(channel=pb.ImageTransport.MMAP, handle="file:///" + path.as_posix())
 
-    def watch(self, width, height, on_frame):
+    def watch(self, width, height, on_frame, wanted=None):
+        """Streams the screen to on_frame. wanted() is asked before each frame is copied out of shared memory,
+        so a frame the caller would only throw away (eco mode drops most of them) costs nothing"""
         self.unwatch()
         view, transport = self.shared_frames(width, height)
         if view:
@@ -151,6 +153,8 @@ class Bridge:
         def pump():
             try:
                 for image in call:
+                    if wanted and not wanted():
+                        continue
                     shape = image.format
                     if image.image:
                         depth = len(image.image) // max(shape.width * shape.height, 1)

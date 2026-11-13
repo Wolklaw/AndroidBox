@@ -91,11 +91,18 @@ def find(frame, width, height, picture, tolerance):
                pixels[(dy * across + dx) * 3 + 2])
               for dy in range(step // 2, down, step) for dx in range(step // 2, across, step)]
     total = 255 * 3 * len(points)
+    # The points furthest from the picture's average colour go first: a wrong position is usually clear from a
+    # few of them, so it is given up on sooner. The sum is the same whatever the order
+    average = [sum(point[channel] for point in points) / len(points) for channel in (2, 3, 4)]
+    points.sort(key=lambda point: -sum(abs(point[2 + channel] - average[channel]) for channel in range(3)))
+    # Where each point sits relative to the position being tried, worked out once instead of at every position
+    shifted = [((dy * width + dx) * depth, red, green, blue) for dx, dy, red, green, blue in points]
 
     def cost(x, y, limit):
+        base = (y * width + x) * depth
         spent = 0
-        for dx, dy, red, green, blue in points:
-            at = ((y + dy) * width + x + dx) * depth
+        for offset, red, green, blue in shifted:
+            at = base + offset
             spent += abs(frame[at] - red) + abs(frame[at + 1] - green) + abs(frame[at + 2] - blue)
             if spent > limit:
                 return None

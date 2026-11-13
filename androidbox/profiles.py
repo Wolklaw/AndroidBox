@@ -69,9 +69,17 @@ def names():
 
 
 def active():
+    # Asked on every key press that might be a macro's hotkey, so a profile found once is only checked to still
+    # be there instead of listing the whole profiles folder again, which is slow in a cloud-synced one
     wanted = state().get("profile", DEFAULT)
+    base = root()
+    known = cache.get("active")
+    if known and known[0] == (wanted, base) and (base / known[1]).is_dir():
+        return known[1]
     found = names()
     match = next((name for name in found if name.lower() == wanted.lower()), None)
+    if match:
+        cache["active"] = ((wanted, base), match)
     return match or (found[0] if found else DEFAULT)
 
 

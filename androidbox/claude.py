@@ -95,9 +95,18 @@ def adb(serial, *args, binary=False, check=True):
     return result.stdout if binary else result.stdout.decode(errors="replace")
 
 
-def online():
+ONLINE = {"at": 0.0, "found": set()}
+UI_DUMP = "/sdcard/androidbox-ui.xml"
+
+
+def online(fresh=False):
+    # Asking adb costs a whole process, and a run of tool calls in a row all want the same answer
+    if not fresh and time.monotonic() - ONLINE["at"] < 3:
+        return ONLINE["found"]
     out = subprocess.run([str(ADB), "devices"], capture_output=True, text=True, timeout=30, env=ENVIRONMENT).stdout
-    return {line.split()[0] for line in out.splitlines()[1:] if line.strip().endswith("device")}
+    ONLINE["found"] = {line.split()[0] for line in out.splitlines()[1:] if line.strip().endswith("device")}
+    ONLINE["at"] = time.monotonic()
+    return ONLINE["found"]
 
 
 def running_ports():
@@ -131,10 +140,11 @@ def instances():
 
 def pick(arguments):
     running = online()
-    live = [item for item in instances() if item["serial"] in running]
+    known = instances()
+    live = [item for item in known if item["serial"] in running]
     if arguments:
         wanted = arguments[0].lower()
-        for item in instances():
+        for item in known:
             if wanted in (item["id"].lower(), item["name"].lower()):
                 arguments.pop(0)
                 if item["serial"] not in running:
@@ -150,10 +160,11 @@ def resolve(name):
     """Same matching as pick(), but for the MCP tools, where the instance is a named argument, not a
     positional one a command might also want."""
     running = online()
-    live = [item for item in instances() if item["serial"] in running]
+    known = instances()
+    live = [item for item in known if item["serial"] in running]
     if name:
         wanted = name.lower()
-        for item in instances():
+        for item in known:
             if wanted in (item["id"].lower(), item["name"].lower()):
                 if item["serial"] not in running:
                     raise Problem(f"{item['name']} isn't running. Start it from the Androidbox window")
@@ -188,11 +199,18 @@ def screenshot(serial):
 
 
 def screen_xml(serial):
-    adb(serial, "shell", "uiautomator", "dump", "/sdcard/androidbox-ui.xml")
+    # Dump and read back in one adb call, which Android 4.1 can't do (no exec-out), so it falls through
     try:
-        return adb(serial, "exec-out", "cat", "/sdcard/androidbox-ui.xml")
+        xml = adb(serial, "exec-out", f"uiautomator dump {UI_DUMP} > /dev/null && cat {UI_DUMP}")
+        if "<hierarchy" in xml:
+            return xml
     except Problem:
-        return pulled(serial, "/sdcard/androidbox-ui.xml").decode(errors="replace")
+        pass
+    adb(serial, "shell", "uiautomator", "dump", UI_DUMP)
+    try:
+        return adb(serial, "exec-out", "cat", UI_DUMP)
+    except Problem:
+        return pulled(serial, UI_DUMP).decode(errors="replace")
 
 
 def screen_nodes(serial):
@@ -217,7 +235,7 @@ def text_content(text):
 
 
 def tool_list_instances(arguments):
-    running = online()
+    running = online(fresh=True)
     lines = [f"{item['name']}\t{item['id']}\t{item['serial']}\t{'running' if item['serial'] in running else 'off'}"
              for item in instances()]
     return [text_content("\n".join(lines) or "no instances")]
@@ -552,7 +570,7 @@ def run(command, arguments):
     if not ADB.exists():
         raise Problem("Androidbox hasn't set up its Android tools yet. Open Androidbox first")
     if command == "list":
-        running = online()
+        running = online(fresh=True)
         for item in instances():
             print(f"{item['name']}\t{item['id']}\t{item['serial']}\t{'running' if item['serial'] in running else 'off'}")
         return

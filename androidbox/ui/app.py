@@ -105,6 +105,8 @@ def main():
     server = listen(window)
     if not (request["background"] and window.tray_active()):
         window.show()
+    else:
+        window.set_relaxed(True)
     code = app.exec()
     server.close()
     # Leftover worker threads or gRPC channels must never keep a closed window alive as a hidden process

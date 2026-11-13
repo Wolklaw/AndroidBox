@@ -1575,7 +1575,15 @@ class MainWindow(QMainWindow, ScreenActions):
         else:
             controller.stop()
 
+    def set_relaxed(self, relaxed):
+        # Hidden in the tray, the status checks slow right down; coming back catches up at once
+        Controller.relaxed = relaxed
+        if not relaxed:
+            for controller in self.controllers.values():
+                controller.nudge()
+
     def bring_back(self):
+        self.set_relaxed(False)
         self.boss_hidden = False
         if self.isMinimized():
             self.showNormal()
@@ -1593,6 +1601,7 @@ class MainWindow(QMainWindow, ScreenActions):
         for popout in self.hidden_popouts:
             popout.hide()
         self.hide()
+        self.set_relaxed(True)
 
     def update_hotkeys(self, announce=False):
         wanted = {}

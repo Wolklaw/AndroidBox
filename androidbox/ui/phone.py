@@ -1,9 +1,10 @@
 import queue
 import threading
 import time
+from dataclasses import astuple
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QColor, QCursor, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QWidget
 
 from .. import emulator, gamepad, installer, keymap, macros
@@ -17,6 +18,7 @@ SCROLL_STEP = 0.12
 SCROLL_LIMIT = 0.6
 ECO_INTERVAL = 1 / 20
 PAD_INTERVAL = 16
+PAD_IDLE_INTERVAL = 100
 TURBO_INTERVAL = 45
 LOOK_SPEED = 14
 PINCH_TOUCHES = (7, 8)
@@ -252,6 +254,10 @@ class PhoneView(QWidget):
         self.latest = None
         self.scheduled = False
         self.last_frame = 0.0
+        self.mask = None
+        self.mask_key = None
+        self.overlay = None
+        self.overlay_state = None
         self.frames = 0
         self.fps = 0
         self.touching = False
@@ -309,18 +315,21 @@ class PhoneView(QWidget):
             return
         self.bridge = self.controller.bridge
         ratio = self.devicePixelRatioF()
-        self.bridge.watch(max(1, int(self.width() * ratio)), max(1, int(self.height() * ratio)), self.receive)
+        self.bridge.watch(max(1, int(self.width() * ratio)), max(1, int(self.height() * ratio)), self.receive,
+                          self.wants_frame)
 
     def stop_stream(self):
         if self.bridge:
             self.bridge.unwatch()
         self.bridge = None
 
+    def wants_frame(self):
+        # Asked before a frame is copied: eco mode keeps about 20 a second and drops the rest unseen
+        controller = self.controller
+        return not (controller and controller.instance.eco and time.monotonic() - self.last_frame < ECO_INTERVAL)
+
     def receive(self, data, width, height, rotation, depth):
-        now = time.monotonic()
-        if self.controller and self.controller.instance.eco and now - self.last_frame < ECO_INTERVAL:
-            return
-        self.last_frame = now
+        self.last_frame = time.monotonic()
         self.latest = (data, width, height, rotation, depth)
         if not self.scheduled:
             self.scheduled = True
@@ -370,25 +379,45 @@ class PhoneView(QWidget):
         self.restream_timer.start()
         self.place_edit_bar()
 
+    def corner_mask(self, rect):
+        """The four slivers outside the frame's rounded corners. Painting these in the background colour rounds
+        the frame without a clip path, which would keep every frame off Qt's plain copy of the image"""
+        key = rect.getRect()
+        if self.mask_key != key:
+            outside = QPainterPath()
+            outside.addRect(rect)
+            inside = QPainterPath()
+            inside.addRoundedRect(rect, 10, 10)
+            self.mask, self.mask_key = outside.subtracted(inside), key
+        return self.mask
+
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        painter.fillRect(self.rect(), QColor(COLORS["main"]))
+        background = QColor(COLORS["main"])
         if not self.image:
+            painter.fillRect(self.rect(), background)
             return
         rect = self.frame_rect()
-        clip = QPainterPath()
-        clip.addRoundedRect(rect, 10, 10)
-        painter.save()
-        painter.setClipPath(clip)
+        # Only the margins: the frame is about to cover the rest
+        full = self.rect()
+        for margin in (QRectF(0, 0, full.width(), rect.top()),
+                       QRectF(0, rect.bottom(), full.width(), full.height() - rect.bottom()),
+                       QRectF(0, rect.top(), rect.left(), rect.height()),
+                       QRectF(rect.right(), rect.top(), full.width() - rect.right(), rect.height())):
+            if margin.width() > 0 and margin.height() > 0:
+                painter.fillRect(margin, background)
+        # A frame the stream made at exactly this size is copied as it is; only a mismatch needs smoothing
+        size = self.image.deviceIndependentSize()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform,
+                              round(size.width()) != rect.width() or round(size.height()) != rect.height())
         painter.drawImage(rect, self.image)
         if self.editing:
             painter.fillRect(rect, QColor(0, 0, 0, 90))
-        painter.restore()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillPath(self.corner_mask(rect), background)
         prefs = self.host.prefs
         if self.controls and (self.editing or prefs["show_hints"] and prefs["game_controls"]):
-            self.paint_controls(painter, rect)
+            self.paint_overlay(painter, rect)
         if prefs["show_fps"]:
             painter.setFont(text_font(12, strong=True))
             painter.setPen(QColor(COLORS["green"]))
@@ -400,6 +429,23 @@ class PhoneView(QWidget):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(COLORS["red"]))
             painter.drawEllipse(QPointF(rect.right() - 18, rect.top() + 18), 6, 6)
+
+    def paint_overlay(self, painter, rect):
+        """The control hints, drawn once into a picture and reused until a control, the selection or the size
+        changes, instead of being drawn again for every frame"""
+        state = (rect.getRect(), self.devicePixelRatioF(), self.editing, self.selected, self.bind_step,
+                 [astuple(control) for control in self.controls])
+        if self.overlay is None or state != self.overlay_state:
+            ratio = self.devicePixelRatioF()
+            picture = QPixmap(int(self.width() * ratio), int(self.height() * ratio))
+            picture.setDevicePixelRatio(ratio)
+            picture.fill(Qt.GlobalColor.transparent)
+            layer = QPainter(picture)
+            layer.setRenderHint(QPainter.RenderHint.Antialiasing)
+            self.paint_controls(layer, rect)
+            layer.end()
+            self.overlay, self.overlay_state = picture, state
+        painter.drawPixmap(0, 0, self.overlay)
 
     def paint_controls(self, painter, rect):
         painter.setFont(text_font(12, strong=True))
@@ -679,6 +725,10 @@ class PhoneView(QWidget):
 
     def poll_pad(self):
         state = self.gamepads.poll() if self.window().isActiveWindow() else None
+        # 60 checks a second only while a controller is there to be read
+        interval = PAD_INTERVAL if state else PAD_IDLE_INTERVAL
+        if self.pad_timer.interval() != interval:
+            self.pad_timer.setInterval(interval)
         pressed, left, right = state or (set(), (0.0, 0.0), (0.0, 0.0))
         for name in sorted(pressed - self.pad_pressed):
             self.pad_button(name, True)
