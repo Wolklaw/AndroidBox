@@ -1,2 +1,2 @@
-VERSION = "1.10.8"
+VERSION = "1.10.9"
 REPOSITORY = "Wolklaw/Androidbox"
