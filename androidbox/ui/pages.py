@@ -622,7 +622,7 @@ class SettingsPage(Page):
                       setting("Ad-free browser", "Installs Firefox and uBlock Origin, which blocks ads on every "
                                                  "website, YouTube included.", browser), divider(),
                       setting("Network proxy", "Routes all of this instance's traffic through an HTTP proxy: "
-                                               "host:port, or http://user:pass@host:port if it needs a login. "
+                                               "host:port, or user:pass@host:port if it needs a login. SOCKS proxies aren't supported. "
                                                "Good for giving each instance its own IP. Blank means none. "
                                                "Applies the next time Android starts.",
                               proxy), divider(),

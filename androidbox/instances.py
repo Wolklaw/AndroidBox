@@ -33,6 +33,29 @@ RESOLUTIONS = {
     "GameStick": (1280, 720, 213),
 }
 # What to emulate: the label, then the emulator's -netspeed and -netdelay names
+
+def proxy_argument(text):
+    """The emulator wants http://[user:pass@]host:port. Providers hand out several other spellings of the same thing."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    scheme = ""
+    if "://" in text:
+        scheme, text = text.split("://", 1)
+        if scheme.lower() not in ("http", "https"):
+            return ""
+    text = text.rstrip("/")
+    if "@" not in text:
+        parts = text.split(":")
+        if len(parts) >= 4 and parts[1].isdigit():
+            # host:port:user:pass, the password may itself hold colons
+            text = f"{parts[2]}:{':'.join(parts[3:])}@{parts[0]}:{parts[1]}"
+        elif len(parts) >= 4 and parts[-1].isdigit():
+            # user:pass:host:port
+            text = f"{parts[0]}:{':'.join(parts[1:-2])}@{parts[-2]}:{parts[-1]}"
+    return "http://" + text
+
+
 NETWORK_PROFILES = {
     "": ("Your connection", "full", "none"),
     "lte": ("4G", "lte", "none"),

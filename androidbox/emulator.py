@@ -148,8 +148,9 @@ class Emulator:
             args.append("-wipe-data")
         if fresh:
             args.append("-no-snapshot-load")
-        if self.instance.proxy:
-            args += ["-http-proxy", self.instance.proxy]
+        proxy = instances.proxy_argument(self.instance.proxy)
+        if proxy:
+            args += ["-http-proxy", proxy]
         if self.instance.network in instances.NETWORK_PROFILES:
             _, speed, delay = instances.NETWORK_PROFILES[self.instance.network]
             args += ["-netspeed", speed, "-netdelay", delay]

@@ -707,3 +707,12 @@ def test_legacy_gamepad_scancodes_are_distinct_and_cover_every_pad_button():
     assert len(set(codes)) == len(codes)
     assert all(name.startswith("BUTTON_") for _, name in emulator.PAD_SCANCODES.values())
     assert phone.GAMEPAD_CODES == {name: code for name, (code, _) in emulator.PAD_SCANCODES.items()}
+
+
+def test_proxy_argument_accepts_common_spellings():
+    from androidbox.instances import proxy_argument
+    assert proxy_argument("1.2.3.4:80") == "http://1.2.3.4:80"
+    assert proxy_argument("u:p@1.2.3.4:80") == "http://u:p@1.2.3.4:80"
+    assert proxy_argument("1.2.3.4:80:u:p") == "http://u:p@1.2.3.4:80"
+    assert proxy_argument("socks5://1.2.3.4:80") == ""
+    assert proxy_argument("") == ""
