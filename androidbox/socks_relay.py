@@ -59,6 +59,19 @@ def socks5_connect(host, port, target_host, target_port, user="", password=""):
         raise
 
 
+def speaks_socks5(host, port, timeout=5):
+    """True if the proxy at host:port answers a SOCKS5 greeting. Lets a SOCKS5 proxy typed as http://... (an easy
+    slip, since apps like v2rayNG only show the host and port) still work. False when it can't be reached or is HTTP"""
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            sock.sendall(b"\x05\x01\x00")
+            reply = sock.recv(2)
+        return len(reply) == 2 and reply[0] == 5
+    except OSError:
+        return False
+
+
 def address(host):
     for family, kind in ((socket.AF_INET, 1), (socket.AF_INET6, 4)):
         try:

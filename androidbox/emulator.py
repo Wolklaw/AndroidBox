@@ -152,6 +152,8 @@ class Emulator:
         self.close_relay()
         proxy = instances.proxy_argument(self.instance.proxy)
         parsed = instances.parse_proxy(self.instance.proxy)
+        if parsed and parsed[0] == "http" and socks_relay.speaks_socks5(parsed[1], parsed[2]):
+            parsed = ("socks", *parsed[1:])
         if parsed and parsed[0] == "socks":
             # The emulator only speaks HTTP proxy, so a SOCKS one goes through a relay on this PC
             _, host, port, user, password = parsed

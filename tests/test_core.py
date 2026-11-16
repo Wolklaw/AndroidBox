@@ -815,3 +815,27 @@ def test_socks_relay_reports_a_dead_proxy_as_bad_gateway():
         assert client.recv(4096).startswith(b"HTTP/1.1 502")
     finally:
         relay.close()
+
+
+def test_speaks_socks5_detects_socks_behind_an_http_spelling():
+    import socket
+    import threading
+    from androidbox.socks_relay import speaks_socks5
+
+    def serve(reply):
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+
+        def run():
+            client, _ = server.accept()
+            client.recv(16)
+            client.sendall(reply)
+            client.close()
+            server.close()
+        threading.Thread(target=run, daemon=True).start()
+        return server.getsockname()[1]
+
+    assert speaks_socks5("127.0.0.1", serve(b"\x05\x00"))
+    assert not speaks_socks5("127.0.0.1", serve(b"HTTP/1.1 400 Bad Request\r\n\r\n"))
+    assert not speaks_socks5("127.0.0.1", 1, timeout=1)
