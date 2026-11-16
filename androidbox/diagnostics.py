@@ -3,7 +3,7 @@ import platform
 import re
 import zipfile
 
-from . import VERSION
+from . import VERSION, instances
 
 # What to look for in the device log, in order of how likely it is to explain a game that crashes or closes
 FINDINGS = [
@@ -74,7 +74,7 @@ def collect(emulator, destination):
         for name, text in outputs.items():
             bundle.writestr(name, text)
         # A proxy address can carry a login, and this file is meant to be shared
-        settings = {**dataclasses.asdict(instance), "proxy": re.sub(r"//[^@/]*@", "//***@", instance.proxy)}
+        settings = {**dataclasses.asdict(instance), "proxy": instances.proxy_label(instance.proxy)}
         bundle.writestr("instance.txt", "\n".join(f"{key}={value}" for key, value in settings.items()))
         for name, path in (("emulator.log", instance.log), ("config.ini", instance.folder / "config.ini")):
             try:

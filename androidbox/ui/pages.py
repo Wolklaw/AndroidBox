@@ -601,7 +601,7 @@ class SettingsPage(Page):
         ads.toggled.connect(controller.set_block_ads)
         browser = button("Set up", lambda: host.set_up_browser(controller), kind="secondary")
         proxy = QLineEdit(instance.proxy)
-        proxy.setPlaceholderText("host:port")
+        proxy.setPlaceholderText("host:port or socks5://host:port")
         proxy.setMaximumWidth(260)
         proxy.editingFinished.connect(lambda: host.set_hardware(controller, proxy=proxy.text().strip()))
         network = choice([(label_, key) for key, (label_, _, _) in instances.NETWORK_PROFILES.items()],
@@ -621,8 +621,9 @@ class SettingsPage(Page):
                       divider(),
                       setting("Ad-free browser", "Installs Firefox and uBlock Origin, which blocks ads on every "
                                                  "website, YouTube included.", browser), divider(),
-                      setting("Network proxy", "Routes all of this instance's traffic through an HTTP proxy: "
-                                               "host:port, or user:pass@host:port if it needs a login. SOCKS proxies aren't supported. "
+                      setting("Network proxy", "Routes all of this instance's traffic through a proxy: "
+                                               "host:port or user:pass@host:port for HTTP, or "
+                                               "socks5://user:pass@host:port for SOCKS5. "
                                                "Good for giving each instance its own IP. Blank means none. "
                                                "Applies the next time Android starts.",
                               proxy), divider(),

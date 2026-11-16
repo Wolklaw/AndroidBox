@@ -11,7 +11,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import bridge, installer, instances, paths, system
+from . import bridge, installer, instances, paths, socks_relay, system
 
 AD_BLOCKING_DNS = "dns.adguard-dns.com"
 # Tools like Android Studio and Godot restart the shared adb server on 5037 whenever they like, which drops
@@ -122,6 +122,7 @@ class Emulator:
         self.started = 0.0
         self.pad_lock = threading.Lock()
         self.pad_console = None
+        self.relay = None
 
     @property
     def lock(self):
@@ -148,7 +149,14 @@ class Emulator:
             args.append("-wipe-data")
         if fresh:
             args.append("-no-snapshot-load")
+        self.close_relay()
         proxy = instances.proxy_argument(self.instance.proxy)
+        parsed = instances.parse_proxy(self.instance.proxy)
+        if parsed and parsed[0] == "socks":
+            # The emulator only speaks HTTP proxy, so a SOCKS one goes through a relay on this PC
+            _, host, port, user, password = parsed
+            self.relay = socks_relay.Relay(host, port, user, password)
+            proxy = self.relay.address
         if proxy:
             args += ["-http-proxy", proxy]
         if self.instance.network in instances.NETWORK_PROFILES:
@@ -258,6 +266,12 @@ class Emulator:
         if not self.fully_stopped():
             self.kill()
         self.process = None
+        self.close_relay()
+
+    def close_relay(self):
+        if self.relay:
+            self.relay.close()
+            self.relay = None
 
     def log_size(self):
         try:

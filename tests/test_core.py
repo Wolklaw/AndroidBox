@@ -715,4 +715,103 @@ def test_proxy_argument_accepts_common_spellings():
     assert proxy_argument("u:p@1.2.3.4:80") == "http://u:p@1.2.3.4:80"
     assert proxy_argument("1.2.3.4:80:u:p") == "http://u:p@1.2.3.4:80"
     assert proxy_argument("socks5://1.2.3.4:80") == ""
+    assert proxy_argument("ftp://1.2.3.4:80") == ""
+    assert proxy_argument("nonsense") == ""
     assert proxy_argument("") == ""
+
+
+def test_parse_proxy_recognises_socks():
+    from androidbox.instances import parse_proxy, proxy_label
+    assert parse_proxy("socks5://u:p@1.2.3.4:1080") == ("socks", "1.2.3.4", 1080, "u", "p")
+    assert parse_proxy("socks5h://1.2.3.4:1080:u:p") == ("socks", "1.2.3.4", 1080, "u", "p")
+    assert parse_proxy("socks://h.example:1080") == ("socks", "h.example", 1080, "", "")
+    assert parse_proxy("1.2.3.4:80") == ("http", "1.2.3.4", 80, "", "")
+    assert proxy_label("socks5://u:secret@1.2.3.4:1080") == "socks5://***@1.2.3.4:1080"
+    assert proxy_label("1.2.3.4:80:u:secret") == "http://***@1.2.3.4:80"
+    assert "secret" not in proxy_label("socks5://u:secret@1.2.3.4:1080")
+
+
+def test_socks_relay_tunnels_http_through_socks5_with_login():
+    import socket
+    import threading
+    from androidbox.socks_relay import Relay
+
+    seen = {}
+
+    def target():
+        sock, _ = target_server.accept()
+        seen["request"] = sock.recv(4096)
+        sock.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nhi")
+        sock.close()
+
+    def socks():
+        client, _ = socks_server.accept()
+        assert client.recv(16) == b"\x05\x02\x00\x02"
+        client.sendall(b"\x05\x02")
+        login = client.recv(64)
+        seen["login"] = login
+        client.sendall(b"\x01\x00")
+        request = client.recv(64)
+        seen["request_head"] = request
+        upstream = socket.create_connection(("127.0.0.1", target_server.getsockname()[1]))
+        client.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+        def forward():
+            try:
+                for data in iter(lambda: client.recv(4096), b""):
+                    upstream.sendall(data)
+            except OSError:
+                pass
+
+        threading.Thread(target=forward, daemon=True).start()
+        try:
+            for data in iter(lambda: upstream.recv(4096), b""):
+                client.sendall(data)
+        except OSError:
+            pass
+        client.close()
+
+    target_server = socket.socket()
+    target_server.bind(("127.0.0.1", 0))
+    target_server.listen(1)
+    socks_server = socket.socket()
+    socks_server.bind(("127.0.0.1", 0))
+    socks_server.listen(1)
+    threading.Thread(target=target, daemon=True).start()
+    threading.Thread(target=socks, daemon=True).start()
+    relay = Relay("127.0.0.1", socks_server.getsockname()[1], "user", "pw")
+    try:
+        for opener in (b"CONNECT example.test:80 HTTP/1.1\r\nHost: example.test:80\r\n\r\n",
+                       b"GET http://example.test/a?b=1 HTTP/1.1\r\nHost: example.test\r\nProxy-Connection: keep-alive\r\n\r\n"):
+            client = socket.create_connection(("127.0.0.1", relay.port), timeout=10)
+            client.sendall(opener)
+            if opener.startswith(b"CONNECT"):
+                assert client.recv(4096).startswith(b"HTTP/1.1 200")
+                client.sendall(b"GET / HTTP/1.1\r\n\r\n")
+            reply = b""
+            while not reply.endswith(b"hi"):
+                chunk = client.recv(4096)
+                assert chunk
+                reply += chunk
+            client.close()
+            break
+        assert seen["login"] == b"\x01\x04user\x02pw"
+        assert b"example.test" in seen["request_head"]
+        assert seen["request"].startswith(b"GET / HTTP/1.1")
+    finally:
+        relay.close()
+
+
+def test_socks_relay_reports_a_dead_proxy_as_bad_gateway():
+    import socket
+    from androidbox.socks_relay import Relay
+    dead = socket.socket()
+    dead.bind(("127.0.0.1", 0))
+    port = dead.getsockname()[1]
+    dead.close()
+    relay = Relay("127.0.0.1", port)
+    try:
+        client = socket.create_connection(("127.0.0.1", relay.port), timeout=10)
+        client.sendall(b"CONNECT example.test:443 HTTP/1.1\r\n\r\n")
+        assert client.recv(4096).startswith(b"HTTP/1.1 502")
+    finally:
+        relay.close()

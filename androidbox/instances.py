@@ -34,26 +34,57 @@ RESOLUTIONS = {
 }
 # What to emulate: the label, then the emulator's -netspeed and -netdelay names
 
-def proxy_argument(text):
-    """The emulator wants http://[user:pass@]host:port. Providers hand out several other spellings of the same thing."""
+def parse_proxy(text):
+    """(kind, host, port, user, password) for a proxy typed in any of the spellings providers use, with kind
+    "http" or "socks" (SOCKS4/5, with or without a socks5h:// name resolution suffix), or None if it's blank or
+    makes no sense. Without a scheme it's taken as HTTP, which is all a bare host:port can mean."""
     text = (text or "").strip()
     if not text:
-        return ""
-    scheme = ""
+        return None
+    kind = "http"
     if "://" in text:
         scheme, text = text.split("://", 1)
-        if scheme.lower() not in ("http", "https"):
-            return ""
+        scheme = scheme.lower()
+        if scheme in ("socks", "socks5", "socks5h"):
+            kind = "socks"
+        elif scheme not in ("http", "https"):
+            return None
     text = text.rstrip("/")
-    if "@" not in text:
+    user = password = ""
+    if "@" in text:
+        login, _, text = text.rpartition("@")
+        user, _, password = login.partition(":")
+    else:
         parts = text.split(":")
         if len(parts) >= 4 and parts[1].isdigit():
             # host:port:user:pass, the password may itself hold colons
-            text = f"{parts[2]}:{':'.join(parts[3:])}@{parts[0]}:{parts[1]}"
+            text, user, password = f"{parts[0]}:{parts[1]}", parts[2], ":".join(parts[3:])
         elif len(parts) >= 4 and parts[-1].isdigit():
             # user:pass:host:port
-            text = f"{parts[0]}:{':'.join(parts[1:-2])}@{parts[-2]}:{parts[-1]}"
-    return "http://" + text
+            text, user, password = f"{parts[-2]}:{parts[-1]}", parts[0], ":".join(parts[1:-2])
+    host, _, port = text.rpartition(":")
+    if not host or not port.isdigit() or not 0 < int(port) < 65536:
+        return None
+    return kind, host.strip("[]"), int(port), user, password
+
+
+def proxy_argument(text):
+    """What the emulator's -http-proxy wants: http://[user:pass@]host:port. A SOCKS proxy has no such spelling,
+    the emulator runs a relay for it instead, so this is "" for one."""
+    proxy = parse_proxy(text)
+    if not proxy or proxy[0] != "http":
+        return ""
+    _, host, port, user, password = proxy
+    return f"http://{user}:{password}@{host}:{port}" if user else f"http://{host}:{port}"
+
+
+def proxy_label(text):
+    """The proxy as it can safely be shared, with any login hidden"""
+    proxy = parse_proxy(text)
+    if not proxy:
+        return text
+    kind, host, port, user, _ = proxy
+    return f"{'socks5' if kind == 'socks' else 'http'}://{'***@' if user else ''}{host}:{port}"
 
 
 NETWORK_PROFILES = {
@@ -102,7 +133,8 @@ class Instance:
     wipe_next: bool = False
     # Where this instance's files live. Empty means the default folder, inside Androidbox's own data
     storage_path: str = ""
-    # An HTTP proxy for all of this instance's network traffic, as host:port or http://user:pass@host:port
+    # A proxy for all of this instance's network traffic: HTTP (host:port, http://user:pass@host:port) or SOCKS5
+    # (socks5://user:pass@host:port)
     proxy: str = ""
     # The network quality to emulate, a key of NETWORK_PROFILES. Empty means the PC's own connection
     network: str = ""
