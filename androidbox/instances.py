@@ -2,7 +2,9 @@ import contextlib
 import json
 import os
 import shutil
+import re
 import stat
+import subprocess
 import time
 import uuid
 import zipfile
@@ -33,6 +35,25 @@ RESOLUTIONS = {
     "GameStick": (1280, 720, 213),
 }
 # What to emulate: the label, then the emulator's -netspeed and -netdelay names
+
+_webcams = []
+
+
+def webcam_count():
+    # The emulator names the PC's cameras webcam0, webcam1 and so on. A tablet with a front and a rear camera
+    # shows up as two, and the back camera should be the second one rather than the first again
+    if not _webcams:
+        count = 1
+        try:
+            result = subprocess.run([str(paths.EMULATOR), "-webcam-list"], capture_output=True, text=True,
+                                    timeout=20, creationflags=subprocess.CREATE_NO_WINDOW, encoding="utf-8",
+                                    errors="replace")
+            count = max(1, len(set(re.findall(r"'webcam(\d+)'", result.stdout + result.stderr))))
+        except (OSError, subprocess.SubprocessError):
+            pass
+        _webcams.append(count)
+    return _webcams[0]
+
 
 def parse_proxy(text):
     """(kind, host, port, user, password) for a proxy typed in any of the spellings providers use, with kind
@@ -440,7 +461,7 @@ def write_avd(instance):
         "hw.cpu.arch": installer.ARCH_FAMILY[abi],
         "PlayStore.enabled": "true" if installer.has_playstore(instance.api) else "false",
         "hw.camera.front": "webcam0" if instance.camera else "none",
-        "hw.camera.back": "webcam0" if instance.camera else "none",
+        "hw.camera.back": ("webcam1" if webcam_count() > 1 else "webcam0") if instance.camera else "none",
         "disk.dataPartition.size": f"{instance.disk}G",
         "hw.gpu.mode": instance.gpu_mode,
         "hw.cpu.ncore": str(instance.cores),
