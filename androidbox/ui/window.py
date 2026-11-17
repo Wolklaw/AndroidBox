@@ -1146,6 +1146,12 @@ class MainWindow(QMainWindow, ScreenActions):
         if controller.state in ("on", "booting"):
             self.toast("Saved. Restart Android to use it")
 
+    def test_proxy(self, text):
+        self.toast("Testing the proxy…")
+        self.run(lambda: instances.test_proxy(text),
+                 lambda result: self.toast(result[1], "good" if result[0] else "bad"),
+                 lambda error: self.toast(f"Couldn't test the proxy: {error}", "bad"))
+
     def set_resolution(self, controller, preset):
         width, height, density = instances.RESOLUTIONS[preset]
         self.set_hardware(controller, width=width, height=height, density=density)
@@ -1522,6 +1528,10 @@ class MainWindow(QMainWindow, ScreenActions):
     def handle_request(self, request):
         # A second Androidbox, or a desktop shortcut, asks this one to start an instance or open a game
         quiet = request.get("background")
+        if request.get("start_all") or request.get("stop_all"):
+            for each in list(self.controllers.values()):
+                each.start() if request.get("start_all") else each.stop()
+            return
         if not quiet:
             self.bring_back()
         controller = self.find_instance(request.get("instance")) or (self.active() if request.get("launch") else None)
@@ -1531,6 +1541,8 @@ class MainWindow(QMainWindow, ScreenActions):
             return
         if request.get("launch"):
             controller.launch(request["launch"])
+        elif request.get("stop"):
+            controller.stop()
         elif request.get("instance") and controller.state in ("off", "crashed"):
             controller.start()
         if not quiet:

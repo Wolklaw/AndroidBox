@@ -1,5 +1,6 @@
 import ctypes
 import os
+import shutil
 import subprocess
 import sys
 import winreg
@@ -37,6 +38,17 @@ def host_memory():
     status.length = ctypes.sizeof(status)
     ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
     return status.total // (1 << 20)
+
+
+def free_gigabytes(folder):
+    """Free space on the drive a folder is (or would be) on, in GB; a huge number if it can't be told"""
+    try:
+        anchor = Path(folder)
+        while not anchor.exists() and anchor != anchor.parent:
+            anchor = anchor.parent
+        return shutil.disk_usage(anchor).free / (1 << 30)
+    except OSError:
+        return 1 << 20
 
 
 def suggested_hardware():

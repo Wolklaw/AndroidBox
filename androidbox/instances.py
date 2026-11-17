@@ -78,6 +78,43 @@ def proxy_argument(text):
     return f"http://{user}:{password}@{host}:{port}" if user else f"http://{host}:{port}"
 
 
+def effective_proxy(text):
+    """parse_proxy, except an http:// or bare proxy that actually speaks SOCKS5 comes back as "socks"."""
+    from . import socks_relay
+    proxy = parse_proxy(text)
+    if proxy and proxy[0] == "http" and socks_relay.speaks_socks5(proxy[1], proxy[2]):
+        return ("socks", *proxy[1:])
+    return proxy
+
+
+def test_proxy(text):
+    """(ok, message) for a proxy as typed in Settings, without starting Android"""
+    from . import socks_relay
+    proxy = effective_proxy(text)
+    if not text.strip():
+        return False, "Type a proxy first"
+    if not proxy:
+        return False, "That doesn't look like a proxy. Try host:port or socks5://user:pass@host:port"
+    return socks_relay.check(*proxy)
+
+
+def hardware_warnings(instance, everyone, host_megabytes, free_gb, reserved=4096):
+    """Plain-language notes about settings that are likely to make Windows or Android struggle. Empty when
+    nothing looks off"""
+    notes = []
+    others = [other for other in everyone if other.id != instance.id]
+    total = instance.ram + sum(other.ram for other in others)
+    if others and total > host_megabytes - reserved:
+        notes.append(f"All your instances together are set to {total / 1024:.0f} GB of memory and this PC has "
+                     f"{host_megabytes / 1024:.0f} GB. Running them at the same time can slow Windows down or "
+                     "make Android close. Lower some of them, or run fewer at once.")
+    if free_gb < 10:
+        notes.append(f"Only {free_gb:.0f} GB is free on the drive that holds this instance. Android needs room "
+                     "to grow, and it stops when the drive fills up. Free some space, or move the instance to "
+                     "another drive.")
+    return notes
+
+
 def proxy_label(text):
     """The proxy as it can safely be shared, with any login hidden"""
     proxy = parse_proxy(text)

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFra
                                QKeySequenceEdit, QLabel, QLineEdit, QMenu, QPlainTextEdit, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import VERSION, claude, installer, instances, keymap, macros, paths, profiles, system, vision
+from .. import VERSION, claude, diagnostics, installer, instances, keymap, macros, paths, profiles, system, vision
 from .controller import plural
 from .inspector import Inspector
 from .phone import PhoneView
@@ -198,6 +198,7 @@ class StateView(QWidget):
     def __init__(self, host):
         super().__init__()
         self.host = host
+        self.reasons = {}
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(10)
@@ -220,6 +221,16 @@ class StateView(QWidget):
         layout.addSpacing(14)
         layout.addWidget(self.tip, alignment=Qt.AlignmentFlag.AlignHCenter)
 
+    def crash_reason(self, instance):
+        """What the emulator's log says went wrong, read once per change to the log rather than on every repaint"""
+        try:
+            stamp = instance.log.stat().st_mtime_ns
+        except OSError:
+            return None
+        if self.reasons.get(instance.id, (None,))[0] != stamp:
+            self.reasons[instance.id] = (stamp, diagnostics.startup_reason(instance))
+        return self.reasons[instance.id][1]
+
     def show_state(self, controller, popped=False):
         while self.actions.count():
             self.actions.takeAt(0).widget().deleteLater()
@@ -232,6 +243,9 @@ class StateView(QWidget):
             title, text = "Shutting down…", "Android is saving its state so it resumes quickly next time."
         elif state == "crashed":
             title, text = "Android stopped unexpectedly", "The log may say why. Starting again usually fixes it."
+            reason = self.crash_reason(controller.instance)
+            if reason:
+                text = f"{reason[0]}. {reason[1]}"
         elif state == "on":
             title, text = "Connecting…", "Android is running. Connecting to its screen."
         else:
@@ -254,6 +268,8 @@ class StateView(QWidget):
             self.actions.addWidget(button("Start Android", controller.start, size="large"))
         if state == "crashed" and not popped:
             self.actions.addWidget(button("Open log", controller.open_log, kind="secondary", size="large"))
+            self.actions.addWidget(button("Save diagnostics", lambda: self.host.collect_diagnostics(controller),
+                                          kind="secondary", size="large"))
 
 
 # Below this the phone needs the room more than the panel does
@@ -578,7 +594,9 @@ class SettingsPage(Page):
         if controller.state in ("on", "booting"):
             restart = [divider(), row(label("Restart Android to use new hardware settings.", "Muted"), None,
                                       button("Restart", controller.restart, kind="secondary"))]
-        self.add(card(label("Performance", "Section"),
+        notes = [label(note, "Muted", wrap=True) for note in instances.hardware_warnings(
+            instance, host.instances, system.host_memory(), system.free_gigabytes(instance.folder))]
+        self.add(card(label("Performance", "Section"), *notes,
                       setting("Processor", "More cores help heavy games.", cores), divider(),
                       setting("Memory", "4 GB suits most apps and games.", memory), divider(),
                       setting("Display", "Tablet runs in landscape, which most games prefer.", display), divider(),
@@ -604,6 +622,8 @@ class SettingsPage(Page):
         proxy.setPlaceholderText("host:port or socks5://host:port")
         proxy.setMaximumWidth(260)
         proxy.editingFinished.connect(lambda: host.set_hardware(controller, proxy=proxy.text().strip()))
+        proxy_test = button("Test", lambda: host.test_proxy(proxy.text().strip()), kind="secondary")
+        proxy_box = row(proxy, proxy_test)
         network = choice([(label_, key) for key, (label_, _, _) in instances.NETWORK_PROFILES.items()],
                          instance.network)
         network.currentIndexChanged.connect(lambda: controller.set_network(network.currentData()))
@@ -626,7 +646,7 @@ class SettingsPage(Page):
                                                "socks5://user:pass@host:port for SOCKS5. "
                                                "Good for giving each instance its own IP. Blank means none. "
                                                "Applies the next time Android starts.",
-                              proxy), divider(),
+                              proxy_box), divider(),
                       setting("Network conditions", "Slows this instance's connection to what a phone would get, "
                                                     "to see how an app or game copes. Applies right away.",
                               network)))

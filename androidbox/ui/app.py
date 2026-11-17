@@ -17,13 +17,18 @@ REQUESTS = "Androidbox-requests"
 
 def parse(arguments):
     # Done by hand: the windowed exe has no console, and argparse reports mistakes by printing to one
-    request = {"instance": None, "launch": None, "background": False, "fullscreen": False}
+    request = {"instance": None, "launch": None, "background": False, "fullscreen": False,
+               "stop": False, "start_all": False, "stop_all": False}
     items = iter(arguments)
     for item in items:
         if item == "--background":
             request["background"] = True
         elif item == "--fullscreen":
             request["fullscreen"] = True
+        elif item in ("--stop", "--start-all", "--stop-all"):
+            request[item[2:].replace("-", "_")] = True
+            if item == "--stop":
+                request["instance"] = next(items, None)
         elif item in ("--instance", "--launch"):
             request[item[2:]] = next(items, None)
     return request

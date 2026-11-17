@@ -3,6 +3,7 @@
 The Android emulator can only be pointed at an HTTP proxy (-http-proxy). Many providers, and apps like v2rayNG,
 hand out SOCKS5 proxies instead, so Androidbox runs one of these on 127.0.0.1 and gives the emulator that address.
 """
+import base64
 import socket
 import struct
 import threading
@@ -70,6 +71,34 @@ def speaks_socks5(host, port, timeout=5):
         return len(reply) == 2 and reply[0] == 5
     except OSError:
         return False
+
+
+def check(kind, host, port, user="", password="", timeout=10):
+    """(ok, message): can traffic get out through this proxy? Opens a tunnel to a well-known HTTPS host the way
+    Android would, so a wrong login, a dead address and a wrong kind of proxy each get their own message."""
+    try:
+        if kind == "socks":
+            socks5_connect(host, port, "example.com", 443, user, password).close()
+            return True, "The proxy works (SOCKS5)"
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            login = ""
+            if user:
+                token = base64.b64encode(f"{user}:{password}".encode()).decode()
+                login = f"Proxy-Authorization: Basic {token}\r\n"
+            request = f"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n{login}\r\n"
+            sock.sendall(request.encode())
+            reply = sock.recv(4096).decode("latin-1")
+        status = reply.split(" ", 2)[1] if reply.startswith("HTTP/") and " " in reply else ""
+        if status == "200":
+            return True, "The proxy works (HTTP)"
+        if status == "407":
+            return False, "The proxy rejected the username or password"
+        if reply[:1] == "\x05":
+            return False, "That is a SOCKS5 proxy: enter it as socks5://user:pass@host:port"
+        return False, f"The proxy answered with an error ({status or 'not an HTTP reply'})"
+    except OSError as problem:
+        return False, f"Couldn't use the proxy: {problem}"
 
 
 def address(host):

@@ -839,3 +839,57 @@ def test_speaks_socks5_detects_socks_behind_an_http_spelling():
     assert speaks_socks5("127.0.0.1", serve(b"\x05\x00"))
     assert not speaks_socks5("127.0.0.1", serve(b"HTTP/1.1 400 Bad Request\r\n\r\n"))
     assert not speaks_socks5("127.0.0.1", 1, timeout=1)
+
+
+def _serve_once(reply):
+    import socket
+    import threading
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+
+    def run():
+        client, _ = server.accept()
+        client.recv(4096)
+        client.sendall(reply)
+        client.close()
+        server.close()
+    threading.Thread(target=run, daemon=True).start()
+    return server.getsockname()[1]
+
+
+def test_proxy_test_reports_what_is_wrong():
+    from androidbox.socks_relay import check
+    ok, _ = check("http", "127.0.0.1", _serve_once(b"HTTP/1.1 200 Connection established\r\n\r\n"))
+    assert ok
+    ok, message = check("http", "127.0.0.1", _serve_once(b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n"), "u", "p")
+    assert not ok and "username or password" in message
+    ok, message = check("http", "127.0.0.1", _serve_once(b"\x05\x00"))
+    assert not ok and "socks5://" in message
+    ok, message = check("http", "127.0.0.1", 1, timeout=1)
+    assert not ok and "Couldn't use the proxy" in message
+    assert instances.test_proxy("")[0] is False
+    assert instances.test_proxy("nonsense")[0] is False
+
+
+def test_startup_reason_reads_known_failures_and_ignores_normal_logs():
+    from androidbox import diagnostics
+    healthy = ("INFO         | Checking: hasSufficientDiskSpace\nINFO         |      Ok: met\n"
+               "ERROR        | Error opening 'x/snapshots/default_boot/snapshot.pb' for writing.\n"
+               "WARNING      | Failed to load snapshot 'default_boot'\nINFO | Guest GLES Driver: Auto\n")
+    assert diagnostics.startup_findings(healthy) == []
+    broken = "INFO | starting\nERROR | WHPX: Failed to create partition\nERROR | No space left on device\n"
+    found = diagnostics.startup_findings(broken)
+    assert [title for title, _, _ in found][0].startswith("Windows' virtualization")
+    assert len(found) == 2 and "WHPX" in found[0][2]
+
+
+def test_hardware_warnings_only_speak_when_something_is_off():
+    mine = instances.Instance(id="a", name="a", slot=0, ram=8192)
+    other = instances.Instance(id="b", name="b", slot=1, ram=8192)
+    assert instances.hardware_warnings(mine, [mine], 16384, 200) == []
+    assert instances.hardware_warnings(mine, [mine, other], 32768, 200) == []
+    memory, = instances.hardware_warnings(mine, [mine, other], 16384, 200)
+    assert "16 GB" in memory and "together" in memory
+    disk, = instances.hardware_warnings(mine, [mine], 16384, 4.2)
+    assert "4 GB" in disk
