@@ -5,10 +5,20 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
+from . import theme
 from .theme import COLORS, ICONS, Fonts
 
-STATUS_COLORS = {"on": COLORS["green"], "booting": COLORS["yellow"], "stopping": COLORS["yellow"],
-                 "crashed": COLORS["red"]}
+def status_colors():
+    return {"on": COLORS["green"], "booting": COLORS["yellow"], "stopping": COLORS["yellow"], "crashed": COLORS["red"]}
+
+
+STATUS_COLORS = status_colors()
+
+
+def refresh_colors():
+    # Run once the theme is chosen: the other modules hold this same dictionary
+    STATUS_COLORS.clear()
+    STATUS_COLORS.update(status_colors())
 
 
 def style_title_bar(window):
@@ -17,6 +27,11 @@ def style_title_bar(window):
     for attribute, value in ((20, 1), (35, color.red() | color.green() << 8 | color.blue() << 16)):
         data = ctypes.c_int(value)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(handle, attribute, ctypes.byref(data), ctypes.sizeof(data))
+
+
+def corner(radius):
+    # The Glitch theme has sharp 3px corners
+    return min(radius, 3) if theme.glitched() else radius
 
 
 def icon_font(size):
@@ -53,11 +68,19 @@ def recolor(badge, color, ink=None):
     font = glyph_css(size // 2) if badge.property("glyph") else \
         f'font-family: "{Fonts.strong}"; font-size: {size * 2 // 5}px;'
     ink = ink or (COLORS["on_accent"] if color == COLORS["accent"] else COLORS["bright"])
-    badge.setStyleSheet(f"background: {color}; color: {ink}; border-radius: {size // 4}px; {font}")
+    radius = min(3, size // 4) if theme.glitched() else size // 4
+    badge.setStyleSheet(f"background: {color}; color: {ink}; border-radius: {radius}px; {font}")
+
+
+SPLIT_NAMES = ("Brand", "Heading", "HeaderTitle")
 
 
 def label(text="", name=None, wrap=False):
-    widget = QLabel(text)
+    if theme.glitched() and name in SPLIT_NAMES:
+        from .glitch import SplitLabel
+        widget = SplitLabel(text)
+    else:
+        widget = QLabel(text)
     if name:
         widget.setObjectName(name)
     widget.setWordWrap(wrap)
@@ -140,7 +163,7 @@ class SidebarButton(QAbstractButton):
         if self.isChecked() or self.hovered:
             painter.setBrush(QColor(COLORS["selected" if self.isChecked() else "hover"]))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(QRectF(self.rect()), 8, 8)
+            painter.drawRoundedRect(QRectF(self.rect()), corner(8), corner(8))
 
     def ink(self):
         return QColor(COLORS["bright"] if self.isChecked() else COLORS["text"] if self.hovered else COLORS["muted"])
@@ -238,11 +261,11 @@ class InstanceButton(SidebarButton):
         painter.setBrush(QColor(COLORS["selected"] if self.isChecked() else COLORS["hover"] if self.hovered
                                 else COLORS["surface"]))
         painter.setPen(QPen(QColor(COLORS["accent"]), 1.5) if self.isChecked() else Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(card, 14, 14)
+        painter.drawRoundedRect(card, corner(14), corner(14))
 
         tile = QRectF(11, 10, 32, 52)
         path = QPainterPath()
-        path.addRoundedRect(tile, 8, 8)
+        path.addRoundedRect(tile, corner(8), corner(8))
         painter.save()
         painter.setClipPath(path)
         if self.thumb is not None and not self.thumb.isNull():
@@ -265,7 +288,7 @@ class InstanceButton(SidebarButton):
             zone = self.power_zone()
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(COLORS["raised"]))
-            painter.drawRoundedRect(zone, 9, 9)
+            painter.drawRoundedRect(zone, corner(9), corner(9))
             running = self.state == "on"
             painter.setPen(QColor(COLORS["red"] if running else COLORS["accent"]))
             painter.setFont(icon_font(14))
@@ -318,10 +341,10 @@ class ProfileButton(QAbstractButton):
         painter.setPen(Qt.PenStyle.NoPen)
         if self.hovered:
             painter.setBrush(QColor(COLORS["hover"]))
-            painter.drawRoundedRect(QRectF(self.rect()), 8, 8)
+            painter.drawRoundedRect(QRectF(self.rect()), corner(8), corner(8))
         tile = QRectF(6, 6, 24, 24)
         painter.setBrush(QColor(COLORS["accent"]))
-        painter.drawRoundedRect(tile, 6, 6)
+        painter.drawRoundedRect(tile, corner(6), corner(6))
         painter.setPen(QColor(COLORS["on_accent"]))
         painter.setFont(text_font(11, strong=True))
         painter.drawText(tile, Qt.AlignmentFlag.AlignCenter, self.tag)

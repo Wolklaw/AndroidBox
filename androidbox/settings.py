@@ -13,6 +13,7 @@ LOCAL = {
     "boss_key": "",
     "always_on_top": False,
     "compact_tools": False,
+    "theme": "classic",
     "inspector": True,
     "default_storage_path": "",
     "mirrors": [],

@@ -13,6 +13,7 @@ from .. import VERSION, claude, diagnostics, installer, instances, keymap, macro
 from .controller import plural
 from .inspector import Inspector
 from .phone import PhoneView
+from . import theme
 from .theme import COLORS, ICONS
 from .tools import ToolRail
 from .widgets import (Modal, Toggle, avatar, button, card, column, confirm, divider, glyph_css, label, recolor,
@@ -810,6 +811,8 @@ class InstancesPage(Page):
         fps.toggled.connect(lambda on: host.set_pref("show_fps", on))
         compact = Toggle(host.prefs["compact_tools"])
         compact.toggled.connect(lambda on: host.set_pref("compact_tools", on))
+        look = choice(theme.NAMES, host.prefs["theme"])
+        look.currentIndexChanged.connect(lambda _, box=look: host.set_theme(box.currentData()))
         updates = Toggle(host.prefs["check_updates"])
         updates.toggled.connect(lambda on: host.set_pref("check_updates", on))
         automatic = Toggle(host.prefs["auto_update"] and system.can_update())
@@ -827,6 +830,9 @@ class InstancesPage(Page):
                       divider(),
                       setting("Compact toolbar", "Make the row of tool buttons under the screen smaller.",
                               compact), divider(),
+                      setting("Theme", "Classic is the default. Glitch matches wolklaw.dev: indigo, mint, sharp "
+                                       "corners and a magenta and cyan split that tears now and then. Androidbox "
+                                       "restarts to switch.", look), divider(),
                       setting("Check for updates", f"You're on Androidbox {VERSION}. Androidbox asks GitHub when it "
                                                    "starts, and every few hours while it runs, whether a newer "
                                                    "version is out.", updates), divider(),

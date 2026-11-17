@@ -1,6 +1,6 @@
 from PySide6.QtGui import QFontDatabase
 
-COLORS = {
+CLASSIC = {
     "sidebar": "#10131a",
     "main": "#151921",
     "surface": "#1c212b",
@@ -23,6 +23,59 @@ COLORS = {
     "danger_hover": "#bf433d",
     "yellow": "#e8b64c",
 }
+
+# The wolklaw.dev look: deep indigo, mint, and two colour channels (magenta and cyan) that slip out of register
+GLITCH = {
+    "sidebar": "#0d0c20",
+    "main": "#0a0919",
+    "surface": "#141233",
+    "raised": "#1b1948",
+    "hover": "#17153c",
+    "selected": "#252262",
+    "input": "#07061a",
+    "line": "#2a2760",
+    "text": "#f1efff",
+    "bright": "#ffffff",
+    "muted": "#b3b0d2",
+    "faint": "#8a86b4",
+    "dim": "#5b5788",
+    "accent": "#9be8b8",
+    "accent_hover": "#b8f2cf",
+    "on_accent": "#0a0919",
+    "green": "#9be8b8",
+    "red": "#ff2e88",
+    "danger": "#ff2e88",
+    "danger_hover": "#e02677",
+    "yellow": "#f4c95d",
+    "channel_a": "#ff2e88",
+    "channel_b": "#22d8ff",
+    "raised_hover": "#2a2766",
+}
+
+THEMES = {"classic": CLASSIC, "glitch": GLITCH}
+NAMES = [("Classic", "classic"), ("Glitch (wolklaw.dev)", "glitch")]
+CONFETTI = {"classic": ["#3ddc84", "#e8b64c", "#f2766f", "#6ea8fe", "#c792ea", "#5ae497", "#f5f6f7"],
+            "glitch": ["#9be8b8", "#f4c95d", "#ff2e88", "#22d8ff", "#b9a6ff", "#ff9ebb", "#f1efff"]}
+
+# Every module shares this one dictionary, so choosing a theme changes it in place before the windows are built
+COLORS = {}
+CURRENT = "classic"
+
+
+def use(name):
+    global CURRENT
+    CURRENT = name if name in THEMES else "classic"
+    COLORS.clear()
+    COLORS.update({"channel_a": CLASSIC["red"], "channel_b": CLASSIC["accent"], "raised_hover": "#323a4b"})
+    COLORS.update(THEMES[CURRENT])
+
+
+def glitched():
+    return CURRENT == "glitch"
+
+
+use("classic")
+
 
 ICONS = {
     "back": "",
@@ -73,13 +126,46 @@ class Fonts:
         def pick(*names):
             return next((name for name in names if name in available), names[-1])
 
-        cls.text = pick("Segoe UI Variable Text", "Segoe UI")
-        cls.strong = pick("Segoe UI Semibold", "Segoe UI")
+        cls.text = pick("Inter", "Segoe UI Variable Text", "Segoe UI") if glitched() else             pick("Segoe UI Variable Text", "Segoe UI")
+        cls.strong = pick("Chakra Petch SemiBold", "Chakra Petch", "Bahnschrift SemiBold", "Bahnschrift",
+                          "Segoe UI Semibold", "Segoe UI") if glitched() else pick("Segoe UI Semibold", "Segoe UI")
         cls.icons = pick("Segoe Fluent Icons", "Segoe MDL2 Assets")
 
 
 def stylesheet():
     c = COLORS
+    sharp = glitched()
+    big, mid, small, pill = ("3px", "3px", "2px", "3px") if sharp else ("16px", "10px", "8px", "14px")
+    tag = "3px" if sharp else "12px"
+    handle, item = ("2px", "2px") if sharp else ("4px", "6px")
+    dock, dialog, menu = ("3px", "3px", "3px") if sharp else ("20px", "18px", "12px")
+    split = f"""
+    QPushButton:hover {{
+        border-left: 3px solid {c["channel_a"]};
+        border-right: 3px solid {c["channel_b"]};
+        padding: 0 15px;
+    }}
+    QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus {{
+        border: 1px solid {c["channel_b"]};
+        border-left: 3px solid {c["channel_a"]};
+    }}
+    #Card {{
+        border: 1px solid {c["line"]};
+        border-left: 2px solid {c["channel_a"]};
+        border-right: 2px solid {c["channel_b"]};
+    }}
+    QScrollBar::handle:vertical:hover {{
+        background: {c["channel_b"]};
+    }}
+    QToolTip {{
+        border-left: 3px solid {c["channel_a"]};
+        border-right: 3px solid {c["channel_b"]};
+    }}
+    QPushButton[kind="link"]:hover, QPushButton[kind="chip"]:hover {{
+        border-left: none;
+        border-right: none;
+    }}
+    """ if sharp else ""
     return f"""
     QWidget {{
         color: {c["text"]};
@@ -101,12 +187,12 @@ def stylesheet():
     #Dock {{
         background: {c["raised"]};
         border: 1px solid {c["line"]};
-        border-radius: 20px;
+        border-radius: {dock};
     }}
     #Chip {{
         background: {c["surface"]};
         color: {c["muted"]};
-        border-radius: 12px;
+        border-radius: {tag};
         padding: 4px 10px;
         font-size: 9pt;
     }}
@@ -149,7 +235,7 @@ def stylesheet():
     }}
     #Card {{
         background: {c["surface"]};
-        border-radius: 16px;
+        border-radius: {big};
     }}
     #Divider {{
         background: {c["line"]};
@@ -158,7 +244,7 @@ def stylesheet():
     }}
     QPushButton {{
         border: none;
-        border-radius: 10px;
+        border-radius: {mid};
         padding: 0 18px;
         min-height: 36px;
         font-family: "{Fonts.strong}";
@@ -178,7 +264,7 @@ def stylesheet():
         color: {c["text"]};
     }}
     QPushButton[kind="secondary"]:hover {{
-        background: #323a4b;
+        background: {c["raised_hover"]};
     }}
     QPushButton[kind="danger"] {{
         background: {c["danger"]};
@@ -199,7 +285,7 @@ def stylesheet():
     QPushButton[kind="chip"] {{
         background: {c["surface"]};
         color: {c["muted"]};
-        border-radius: 14px;
+        border-radius: {pill};
         min-height: 28px;
         padding: 0 12px;
     }}
@@ -214,7 +300,7 @@ def stylesheet():
     QLineEdit, QComboBox, QAbstractSpinBox {{
         background: {c["input"]};
         border: 1px solid {c["line"]};
-        border-radius: 10px;
+        border-radius: {mid};
         padding: 0 12px;
         min-height: 36px;
         color: {c["text"]};
@@ -227,13 +313,13 @@ def stylesheet():
     QListWidget {{
         background: {c["input"]};
         border: 1px solid {c["line"]};
-        border-radius: 8px;
+        border-radius: {small};
         padding: 4px;
         outline: none;
     }}
     QListWidget::item {{
         padding: 7px 10px;
-        border-radius: 6px;
+        border-radius: {item};
     }}
     QListWidget::item:hover {{
         background: {c["hover"]};
@@ -268,7 +354,7 @@ def stylesheet():
     }}
     QScrollBar::handle:vertical {{
         background: {c["raised"]};
-        border-radius: 4px;
+        border-radius: {handle};
         min-height: 32px;
     }}
     QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {{
@@ -285,12 +371,12 @@ def stylesheet():
     QMenu {{
         background: {c["surface"]};
         border: 1px solid {c["line"]};
-        border-radius: 12px;
+        border-radius: {menu};
         padding: 6px;
     }}
     QMenu::item {{
         padding: 8px 16px;
-        border-radius: 8px;
+        border-radius: {small};
         color: {c["text"]};
     }}
     QMenu::item:selected {{
@@ -305,12 +391,12 @@ def stylesheet():
     #Toast {{
         background: {c["raised"]};
         color: {c["bright"]};
-        border-radius: 8px;
+        border-radius: {small};
         padding: 10px 16px;
     }}
     #Dialog {{
         background: {c["surface"]};
         border: 1px solid {c["line"]};
-        border-radius: 18px;
+        border-radius: {dialog};
     }}
-    """
+    """ + split

@@ -893,3 +893,18 @@ def test_hardware_warnings_only_speak_when_something_is_off():
     assert "16 GB" in memory and "together" in memory
     disk, = instances.hardware_warnings(mine, [mine], 16384, 4.2)
     assert "4 GB" in disk
+
+
+def test_themes_share_one_palette_dictionary():
+    from androidbox.ui import theme
+    colors = theme.COLORS
+    try:
+        theme.use("glitch")
+        assert theme.COLORS is colors and colors["accent"] == "#9be8b8" and theme.glitched()
+        assert "border-left" in theme.stylesheet()
+        theme.use("nonsense")
+        assert not theme.glitched() and colors["accent"] == "#3ddc84"
+    finally:
+        theme.use("classic")
+    assert theme.THEMES.keys() == {value for _, value in theme.NAMES}
+    assert all(set(theme.CLASSIC) <= set(palette) for palette in theme.THEMES.values())

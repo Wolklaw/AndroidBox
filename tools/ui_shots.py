@@ -1,6 +1,6 @@
 """Renders Androidbox's pages to PNG files, for looking at a change to the UI without starting Android.
 
-    python tools/ui_shots.py OUTPUT_FOLDER [--size 1280x840]
+    python tools/ui_shots.py OUTPUT_FOLDER [--size 1280x840] [--theme glitch]
 
 It runs the real window against a throwaway Androidbox folder, parked off-screen so it never gets in the
 way, with the real Windows fonts. Nothing in your own Androidbox folder is read or changed.
@@ -27,6 +27,7 @@ from androidbox.ui import tasks  # noqa: E402
 from androidbox.ui.inspector import Inspector  # noqa: E402
 from androidbox.ui.palette import Palette  # noqa: E402
 from androidbox.ui.popout import PopoutWindow  # noqa: E402
+from androidbox.ui import theme, widgets  # noqa: E402
 from androidbox.ui.theme import Fonts, stylesheet  # noqa: E402
 from androidbox.ui.window import MainWindow  # noqa: E402
 
@@ -55,6 +56,9 @@ def main():
     folder = Path(arguments[0])
     folder.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
+    if "--theme" in arguments:
+        theme.use(arguments[arguments.index("--theme") + 1])
+        widgets.refresh_colors()
     Fonts.load()
     app.setStyleSheet(stylesheet())
     window = MainWindow()

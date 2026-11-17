@@ -7,7 +7,8 @@ from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from .. import paths, system
+from .. import paths, settings, system
+from . import theme, widgets
 from .theme import Fonts, stylesheet
 from .window import MainWindow
 
@@ -101,6 +102,9 @@ def main():
     app.setApplicationName(TITLE)
     app.setWindowIcon(QIcon(str(paths.ICON)))
     app.setQuitOnLastWindowClosed(False)
+    # The theme is chosen before any window exists, so everything is built in its colours
+    theme.use(settings.read(paths.SETTINGS).get("theme") if not paths.home_missing() else None)
+    widgets.refresh_colors()
     Fonts.load()
     app.setStyleSheet(stylesheet())
     if paths.home_missing():

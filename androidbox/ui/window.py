@@ -7,7 +7,7 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QPoint, QRect, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLineEdit, QMainWindow,
                                QMenu, QPlainTextEdit, QScrollArea, QStackedWidget, QSystemTrayIcon, QVBoxLayout,
@@ -24,6 +24,7 @@ from .pages import (ControlsPage, InstancesPage, LibraryPage, MacrosPage, NoAcce
 from . import fun
 from .palette import Palette
 from .popout import PopoutWindow
+from . import theme
 from .theme import COLORS, ICONS
 from .widgets import (STATE_WORDS, STATUS_COLORS, InstanceButton, Modal, NavButton, ProfileButton, TabButton, Toast,
                       ToolButton, button, column, confirm, divider, glyph_css, label, row, style_title_bar)
@@ -105,6 +106,8 @@ class MainWindow(QMainWindow, ScreenActions):
         main_layout.addWidget(self.stack, 1)
         root.addWidget(main, 1)
         self.toaster = Toast(central)
+        if theme.glitched():
+            self.add_fault(central, main)
 
         self.screen = ScreenPage(self)
         self.pages = {
@@ -139,6 +142,22 @@ class MainWindow(QMainWindow, ScreenActions):
         else:
             self.show_onboarding(self.setup)
             self.setup.begin()
+
+    def add_fault(self, central, main):
+        from .glitch import Fault
+
+        def inside(widget):
+            return QRect(widget.mapTo(central, QPoint(0, 0)), widget.size())
+
+        def regions():
+            # Scanlines go on the chrome and the pages, never over the Android screen itself
+            areas = [inside(self.sidebar), inside(self.header)]
+            if self.stack.currentWidget() is not self.screen:
+                areas.append(inside(self.stack))
+            return areas
+
+        self.fault = Fault(central, regions)
+        self.stack.currentChanged.connect(lambda _: self.fault.update())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -474,6 +493,14 @@ class MainWindow(QMainWindow, ScreenActions):
         for popout in self.popouts.values():
             popout.refresh_tools()
             popout.screen.phone.update()
+
+    def set_theme(self, name):
+        if name == self.prefs["theme"]:
+            return
+        self.set_pref("theme", name)
+        confirm(self.dialog_parent(), "Restart to switch theme?",
+                "Androidbox needs to restart to change its look. Running Android instances are shut down "
+                "cleanly first.", "Restart now", self.restart)
 
     def update_mirrors(self):
         active = self.active()

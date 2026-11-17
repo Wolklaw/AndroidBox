@@ -4,6 +4,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QWidget
 
+from . import theme
+
 
 # Up, up, down, down, left, right, left, right, B, A
 KONAMI = [Qt.Key.Key_Up, Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right,
@@ -32,7 +34,6 @@ SECRETS = {
     "confetti": "Congratulations on nothing in particular.",
 }
 CONFETTI = {"konami", "confetti"}
-COLORS_FOR_CONFETTI = ["#3ddc84", "#e8b64c", "#f2766f", "#6ea8fe", "#c792ea", "#5ae497", "#f5f6f7"]
 
 
 class Confetti(QWidget):
@@ -48,7 +49,7 @@ class Confetti(QWidget):
             "x": random.uniform(0, width), "y": random.uniform(-parent.height() * 0.6, 0),
             "vx": random.uniform(-1.2, 1.2), "vy": random.uniform(2.5, 6.0), "size": random.uniform(6, 12),
             "turn": random.uniform(0, 360), "spin": random.uniform(-9, 9),
-            "color": QColor(random.choice(COLORS_FOR_CONFETTI))} for _ in range(count)]
+            "color": QColor(random.choice(theme.CONFETTI[theme.CURRENT]))} for _ in range(count)]
         self.timer = QTimer(self, interval=16, timeout=self.step)
         self.timer.start()
         QTimer.singleShot(int(seconds * 1000), self.finish)

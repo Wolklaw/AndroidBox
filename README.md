@@ -198,6 +198,10 @@ for yourself, one for streaming, one for the family PC, and switch from the menu
   under the **...** button, with its name.
 - **Settings search**: a box and a row of section buttons at the top of Settings narrow the page as you
   type or jump to a section.
+- **Glitch theme**: Settings has a **Theme** choice. Classic stays the default. Glitch matches
+  [wolklaw.dev](https://wolklaw.dev): deep indigo and mint, sharp corners, and a magenta and cyan split
+  that tears for a third of a second every few seconds. The scanlines stay off the Android screen, and
+  nothing moves if Windows' animation effects are off. Androidbox restarts to switch.
 
 ### Several Androids at once
 
