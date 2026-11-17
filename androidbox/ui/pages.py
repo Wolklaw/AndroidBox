@@ -812,7 +812,7 @@ class InstancesPage(Page):
         compact = Toggle(host.prefs["compact_tools"])
         compact.toggled.connect(lambda on: host.set_pref("compact_tools", on))
         look = choice(theme.NAMES, host.prefs["theme"])
-        look.currentIndexChanged.connect(lambda _, box=look: host.set_theme(box.currentData()))
+        look.currentIndexChanged.connect(lambda _, box=look: host.set_theme(box.currentData(), box))
         updates = Toggle(host.prefs["check_updates"])
         updates.toggled.connect(lambda on: host.set_pref("check_updates", on))
         automatic = Toggle(host.prefs["auto_update"] and system.can_update())

@@ -494,13 +494,26 @@ class MainWindow(QMainWindow, ScreenActions):
             popout.refresh_tools()
             popout.screen.phone.update()
 
-    def set_theme(self, name):
-        if name == self.prefs["theme"]:
+    def set_theme(self, name, box=None):
+        if name == self.prefs["theme"] or self.closing or getattr(self, "theme_asking", False):
             return
-        self.set_pref("theme", name)
+        self.theme_asking = True
+
+        def switch():
+            # Saved only once the restart is agreed to, so cancelling never leaves a theme that isn't showing
+            self.set_pref("theme", name)
+            self.restart()
+
+        def settled():
+            self.theme_asking = False
+            if box is not None and self.prefs["theme"] != name:
+                box.blockSignals(True)
+                box.setCurrentIndex(max(0, box.findData(self.prefs["theme"])))
+                box.blockSignals(False)
+
         confirm(self.dialog_parent(), "Restart to switch theme?",
                 "Androidbox needs to restart to change its look. Running Android instances are shut down "
-                "cleanly first.", "Restart now", self.restart)
+                "cleanly first.", "Restart now", switch).closed.connect(settled)
 
     def update_mirrors(self):
         active = self.active()
@@ -1732,6 +1745,9 @@ class MainWindow(QMainWindow, ScreenActions):
                  lambda error: progress.done("Couldn't move the files", str(error)))
 
     def restart(self):
+        # Once only: a second helper would start a second copy of Androidbox
+        if self.closing:
+            return
         system.restart()
         self.quit_app()
 
