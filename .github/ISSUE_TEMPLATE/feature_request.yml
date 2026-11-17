@@ -1,0 +1,15 @@
+name: Feature request or question
+description: Something you'd like Androidbox to do, or a question about how it works
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like, or what do you want to know?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What are you trying to do?
+      description: The goal behind it helps find the simplest way to get you there.

@@ -1,11 +1,20 @@
 name: Bug report
 description: Something in Androidbox doesn't work
+labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports with a diagnostics file get fixed much faster, because the file shows what Android and the emulator were doing. It takes a few seconds:
+        1. Start the instance that has the problem and reproduce it if you can, so its log has the problem in it.
+        2. Open that instance's **Settings**, find **Troubleshooting**, and press **Save…** next to **Diagnostics**.
+        3. Drag the saved zip into the box below. Proxy logins are hidden in it.
   - type: input
     id: version
     attributes:
       label: Androidbox version
-      description: Shown at the bottom of Settings
+      description: Shown on the All instances page, next to "Check for updates"
+      placeholder: "1.10.14"
     validations:
       required: true
   - type: input
@@ -26,5 +35,15 @@ body:
   - type: textarea
     id: diagnostics
     attributes:
-      label: Diagnostics
-      description: Export diagnostics from the instance's page and attach the zip. Proxy logins are hidden in it. If it's a proxy problem, press Test next to the proxy setting and paste the message.
+      label: Diagnostics zip
+      description: Drag the diagnostics zip here. If the problem is a network proxy, also press Test next to the proxy setting and paste the message it shows.
+      placeholder: Drag the zip into this box
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you send
+      options:
+        - label: I attached the diagnostics zip, or I can't because Androidbox won't open (and I explained that above)
+          required: true
