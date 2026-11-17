@@ -51,7 +51,7 @@ class Inspector(QWidget):
         instance = controller.instance
         states = controller.emulator.snapshots()
         shown = [macro["name"] for macro in macros.load()][:MACRO_LIMIT]
-        signature = (instance.id, tuple(states), instance.keep_running, instance.network, instance.start_at,
+        signature = (instance.id, instance.name, tuple(states), instance.keep_running, instance.network, instance.start_at,
                      instance.stop_at, controller.package, tuple(shown))
         if signature != self.signature:
             self.signature = signature

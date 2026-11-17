@@ -216,6 +216,7 @@ Those shortcuts just pass command-line arguments, which is also how a frontend l
 a game: point it at `Androidbox.exe` with `--instance <name or id> --launch <package> --fullscreen`.
 `--background` starts the instance without raising the Androidbox window (handy for autostart), and
 leaving out `--launch` just opens or switches to that instance.
+`--stop <name or id>` shuts one instance down, and `--start-all` and `--stop-all` start or stop every instance.
 
 ### Saved states
 
@@ -234,6 +235,15 @@ every day. Androidbox has to be open for either to work, and the tray counts.
 
 Slow an instance's connection to 4G, 3G, EDGE or GPRS speeds, with the delay that goes with them, to see
 how an app or game copes with a poor signal. It applies straight away, with no restart.
+
+### Network proxy
+
+Give an instance its own IP by sending all of its traffic through a proxy, in its Settings under **Extras**.
+Type it the way your provider shows it: `host:port`, `user:pass@host:port` or `host:port:user:pass` for an
+HTTP proxy, or `socks5://user:pass@host:port` for SOCKS5. A SOCKS5 proxy typed without `socks5://` is still
+recognised, and Androidbox runs a small relay on your PC to pass its traffic along, login included. **Test**
+connects through the proxy and tells you what's wrong if it can't: an address that can't be found, a refused
+login, or the wrong kind of proxy. It applies the next time Android starts. SOCKS4 and UDP aren't supported.
 
 ### Updates
 

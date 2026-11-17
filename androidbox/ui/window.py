@@ -433,6 +433,12 @@ class MainWindow(QMainWindow, ScreenActions):
             self.update_header()
             if self.page == "controls":
                 self.pages["controls"].refresh(controller)
+            elif self.page == "screen":
+                # The side panel's "Keep <game> running" names the game in front, so it follows the game
+                self.refresh_tools()
+        popout = self.popouts.get(controller.instance.id)
+        if popout:
+            popout.refresh_tools()
 
     def macros_changed(self, controller):
         if controller is self.active():
@@ -1069,9 +1075,11 @@ class MainWindow(QMainWindow, ScreenActions):
         if text and not found:
             self.toast("Use a time like 08:30, in 24-hour form", "bad")
             self.refresh_settings()
+            self.refresh_tools()
             return
         self.set_automation(controller, **{key: f"{int(found[1]):02d}:{found[2]}" if found else ""})
         self.refresh_settings()
+        self.refresh_tools()
 
     def save_snapshot(self, controller):
         if not controller.on:
@@ -1094,6 +1102,8 @@ class MainWindow(QMainWindow, ScreenActions):
     def snapshot_done(self, ok, success, failure):
         self.toast(success if ok else failure, "good" if ok else "bad")
         self.refresh_settings()
+        # Saved states are also listed in the side panel beside the screen
+        self.refresh_tools()
 
     def load_snapshot(self, controller, name):
         if not name or not controller.on:
@@ -1140,6 +1150,9 @@ class MainWindow(QMainWindow, ScreenActions):
                  lambda error: self.toast(f"Couldn't save diagnostics: {error}", "bad"))
 
     def set_hardware(self, controller, **changes):
+        # A text box reports "finished" whenever it loses focus, changed or not
+        if all(getattr(controller.instance, key) == value for key, value in changes.items()):
+            return
         for key, value in changes.items():
             setattr(controller.instance, key, value)
         controller.save()
