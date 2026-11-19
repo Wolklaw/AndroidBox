@@ -100,7 +100,7 @@ build is new: its tests run on Linux and a headless start of the installed app i
 ([linux.yml](.github/workflows/linux.yml)), but no Android has been run on it by hand yet. Please report what
 you find.
 
-**You need:** a 64-bit x86 Linux desktop (KDE Plasma or GNOME), Python 3.10 or newer, **KVM** (turn on SVM or VT-x
+**You need:** a 64-bit x86 Linux desktop (KDE Plasma or GNOME), Python 3.10 to 3.14 (`--deps` on Fedora installs `python3.13` if the default is newer), **KVM** (turn on SVM or VT-x
 in the BIOS; `/dev/kvm` must exist and be usable by your user, which is the default on current desktops), and the
 same disk space as on Windows.
 
