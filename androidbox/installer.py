@@ -1,13 +1,16 @@
 import hashlib
 import http.client
+import os
+import platform
 import shutil
+import stat
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import paths
+from . import native, paths
 
 REPOSITORY = "https://dl.google.com/android/repository/"
 STABLE = "channel-0"
@@ -33,6 +36,11 @@ LEGACY_EMULATOR = Path("emulator-legacy")
 LEGACY_EMULATOR_URL = REPOSITORY + "emulator-windows_x64-7033400.zip"
 LEGACY_EMULATOR_SIZE = 320335172
 LEGACY_EMULATOR_SHA1 = "96bdb19ff3728586432fafac6220339d2d30f3c2"
+# Only the Windows build of that emulator is known and checked. The Android 4.1 image waits for a Linux one
+LEGACY_SUPPORTED = native.WINDOWS
+# The name Google's repository files give this system, and the processor they have to be for
+HOST_OS = "windows" if native.WINDOWS else "linux"
+HOST_ARCH = "aarch64" if platform.machine().lower() in ("aarch64", "arm64") else "x64"
 TAG_LABELS = {"google_apis_playstore": "Google Play", "google_apis": "Google APIs"}
 # Android 15 stays known so existing instances keep running, but new instances get 16, 11 or the legacy image
 ANDROID_VERSIONS = {"36": "Android 16", "35": "Android 15", "30": "Android 11",
@@ -195,7 +203,7 @@ def newest(root, sdk_path, base_url, label, folder):
             continue
         revision = tuple(int(part.text) for part in first(package, "revision") if part.text.isdigit())
         for archive in package.iter():
-            if local(archive) != "archive" or not runs_on_windows(archive):
+            if local(archive) != "archive" or not runs_here(archive):
                 continue
             if best is None or revision > best[0]:
                 complete = first(archive, "complete")
@@ -208,14 +216,14 @@ def newest(root, sdk_path, base_url, label, folder):
                     folder=folder,
                 )
     if best is None:
-        raise RuntimeError(f"Google's repository has no Windows build of {sdk_path}")
+        raise RuntimeError(f"Google's repository has no {HOST_OS.capitalize()} build of {sdk_path}")
     return best[1]
 
 
-def runs_on_windows(archive):
+def runs_here(archive):
     host = first(archive, "host-os")
     arch = first(archive, "host-arch")
-    return (host is None or host.text == "windows") and (arch is None or arch.text == "x64")
+    return (host is None or host.text == HOST_OS) and (arch is None or arch.text == HOST_ARCH)
 
 
 def fetch(address, partial, have, package, progress):
@@ -267,6 +275,20 @@ def download(package, progress):
     return final
 
 
+def restore_mode(member, path):
+    """Zip extraction drops the permissions Google's archives carry, and on Linux the emulator, qemu and adb
+    are useless without their executable bit"""
+    mode = member.external_attr >> 16
+    if native.WINDOWS or not mode:
+        return
+    if stat.S_ISLNK(mode):
+        target = Path(path).read_text()
+        Path(path).unlink()
+        os.symlink(target, path)
+    elif stat.S_ISREG(mode):
+        os.chmod(path, stat.S_IMODE(mode) | 0o600)
+
+
 def extract(archive, destination, progress):
     staging = destination.parent / ".unpacking"
     shutil.rmtree(staging, ignore_errors=True)
@@ -275,7 +297,7 @@ def extract(archive, destination, progress):
         total = sum(member.file_size for member in members) or 1
         done = 0
         for member in members:
-            zipped.extract(member, staging)
+            restore_mode(member, zipped.extract(member, staging))
             done += member.file_size
             progress(done, total)
     contents = list(staging.iterdir())

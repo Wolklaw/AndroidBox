@@ -1,10 +1,11 @@
 import json
 
-from . import paths, profiles
+from . import native, paths, profiles
 
 LOCAL = {
     "selected": None,
-    "check_updates": True,
+    # On Linux new versions come with the system or its package manager, so Androidbox doesn't nag about GitHub
+    "check_updates": native.WINDOWS,
     "auto_update": True,
     "skipped_version": "",
     "seen_version": "",

@@ -11,7 +11,7 @@ import zipfile
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-from . import installer, paths
+from . import installer, native, paths
 
 CONSOLE_PORTS = [5580, 5582, 5584, 5578, 5576, 5574, 5572, 5570, 5568, 5566, 5564, 5562, 5560, 5558, 5556, 5554]
 GRPC_BASE = 8554
@@ -23,6 +23,8 @@ DEFAULT_GPU = "host"
 BACKUP_SKIPS = {"snapshots", "hardware-qemu.ini.lock", "multiinstance.lock", "hardware-qemu.ini",
                 "emu-launch-params.txt"}
 CHUNK = 1 << 22
+# The emulator's .ini files take the path separator of the system they were written on
+SEP = os.sep
 
 RESOLUTIONS = {
     "Phone": (1080, 1920, 420),
@@ -46,8 +48,7 @@ def webcam_count():
         count = 1
         try:
             result = subprocess.run([str(paths.EMULATOR), "-webcam-list"], capture_output=True, text=True,
-                                    timeout=20, creationflags=subprocess.CREATE_NO_WINDOW, encoding="utf-8",
-                                    errors="replace")
+                                    timeout=20, encoding="utf-8", errors="replace", **native.quiet_options())
             count = max(1, len(set(re.findall(r"'webcam(\d+)'", result.stdout + result.stderr))))
         except (OSError, subprocess.SubprocessError):
             pass
@@ -310,7 +311,7 @@ def recover(instances):
         name = values.get("avd.ini.displayname", "Android").strip() or "Android"
         if any(instance.name == name for instance in instances):
             name = f"{name} (recovered)"
-        api = values.get("image.sysdir.1", "").split("android-")[-1].split("\\")[0]
+        api = values.get("image.sysdir.1", "").split("android-")[-1].replace("\\", "/").split("/")[0]
         storage_path = str(folder.parent) if folder.parent != paths.AVD_HOME else ""
         instances.append(Instance(
             id=marker.stem, name=name, slot=free_slot(instances), storage_path=storage_path,
@@ -439,7 +440,7 @@ def write_avd(instance):
     (paths.AVD_HOME / f"{instance.id}.ini").write_text(
         "avd.ini.encoding=UTF-8\n"
         f"path={instance.folder}\n"
-        f"path.rel=avd\\{instance.id}.avd\n"
+        f"path.rel=avd{SEP}{instance.id}.avd\n"
         f"target=android-{instance.api}\n"
     )
     config_path = instance.folder / "config.ini"
@@ -460,7 +461,7 @@ def write_avd(instance):
     config.update({
         "AvdId": instance.id,
         "avd.ini.displayname": instance.name,
-        "image.sysdir.1": f"{installer.image_dir(instance.api)}\\",
+        "image.sysdir.1": f"{installer.image_dir(instance.api)}{SEP}",
         "tag.id": tag,
         "tag.display": installer.TAG_LABELS.get(tag, tag),
         "abi.type": abi,

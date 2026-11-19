@@ -1,4 +1,3 @@
-import ctypes
 import weakref
 
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
@@ -6,6 +5,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel,
                                QPushButton, QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
+from .. import native
 from . import theme
 from .theme import COLORS, ICONS, Fonts
 
@@ -49,11 +49,8 @@ def retheme():
 
 
 def style_title_bar(window):
-    handle = int(window.winId())
-    color = QColor(COLORS["sidebar"])
-    for attribute, value in ((20, 1), (35, color.red() | color.green() << 8 | color.blue() << 16)):
-        data = ctypes.c_int(value)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(handle, attribute, ctypes.byref(data), ctypes.sizeof(data))
+    if native.WINDOWS:
+        native.style_title_bar(window.winId(), QColor(COLORS["sidebar"]))
 
 
 def corner(radius):
@@ -70,6 +67,8 @@ def icon_font(size):
 def text_font(size, strong=False):
     font = QFont(Fonts.strong if strong else Fonts.text)
     font.setPixelSize(size)
+    if strong and Fonts.strong_weight:
+        font.setWeight(QFont.Weight.DemiBold)
     return font
 
 
@@ -95,7 +94,7 @@ def recolor(badge, color, ink=None):
     def apply(badge):
         size = badge.width()
         font = glyph_css(size // 2) if badge.property("glyph") else \
-            f'font-family: "{Fonts.strong}"; font-size: {size * 2 // 5}px;'
+            f'font-family: "{Fonts.strong}"; {Fonts.strong_weight} font-size: {size * 2 // 5}px;'
         ink_color = COLORS[ink or ("on_accent" if color == "accent" else "bright")]
         radius = min(3, size // 4) if theme.glitched() else size // 4
         badge.setStyleSheet(f"background: {COLORS[color]}; color: {ink_color}; border-radius: {radius}px; {font}")

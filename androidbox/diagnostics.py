@@ -3,7 +3,7 @@ import platform
 import re
 import zipfile
 
-from . import VERSION, instances, socks_relay
+from . import VERSION, instances, native, socks_relay
 
 # What to look for in the device log, in order of how likely it is to explain a game that crashes or closes
 FINDINGS = [
@@ -30,6 +30,12 @@ START_FINDINGS = [
       "haxm is not", "cannot find a hypervisor", "failed to start the hypervisor"),
      "Android needs Windows Hypervisor Platform. Turn it on in Windows Features, restart the PC, and check that "
      "virtualization is enabled in the BIOS. Other virtual machine software can also take it over."),
+    ("KVM isn't working",
+     ("/dev/kvm", "kvm is not", "kvm: failed", "failed to open /dev/kvm", "kvm permission", "no hypervisor",
+      "hypervisor is not", "failed to start the hypervisor"),
+     "Android needs KVM. Check that virtualization (SVM or VT-x) is on in the BIOS, that /dev/kvm exists, and that "
+     "your user can open it: it is usually allowed by default, otherwise add yourself to the kvm group and sign "
+     "in again."),
     ("The drive is full",
      ("no space left on device", "not enough disk space", "insufficient disk space", "disk is full",
       "enospc"),
@@ -38,7 +44,7 @@ START_FINDINGS = [
     ("The PC ran out of memory",
      ("std::bad_alloc", "failed to allocate", "unable to allocate", "cannot allocate memory", "not enough memory",
       "out of memory", "insufficient memory"),
-     "Windows couldn't give this instance the memory it asked for. Close other programs or lower its Memory in "
+     "The PC couldn't give this instance the memory it asked for. Close other programs or lower its Memory in "
      "Settings, especially if other instances are running."),
     ("Graphics couldn't start",
      ("failed to initialize opengles", "initialize gfxstream failed", "vkcreateinstance failed",
@@ -61,13 +67,16 @@ START_FINDINGS = [
      "The emulator program itself crashed. Try Automatic or Software graphics in this instance's Settings, and "
      "update your graphics driver."),
 ]
+# The virtualization advice that doesn't belong to this system is left out, so each one only sees its own
+START_FINDINGS = [finding for finding in START_FINDINGS
+                  if finding[0].startswith("Windows'") == native.WINDOWS or not finding[0].endswith("isn't working")]
 START_PATTERN = re.compile("|".join(re.escape(needle) for _, needles, _ in START_FINDINGS for needle in needles))
 LOG_TAIL = 2 << 20
 # What a failed step of reaching the proxy usually means, by the step that failed
 PROXY_ADVICE = {
     "lookup": "This PC can't find the proxy's address. Check how it is spelled, or type its IP address instead. "
-              "Androidbox looks the address up on Windows, not inside Android.",
-    "connect": "This PC can't connect to the proxy. Androidbox connects from Windows, while an app like v2rayNG "
+              "Androidbox looks the address up on this PC, not inside Android.",
+    "connect": "This PC can't connect to the proxy. Androidbox connects from this PC, while an app like v2rayNG "
                "connects from inside Android, so one can work when the other doesn't. Check the port and any "
                "firewall, and ask the provider whether it only accepts connections from certain places or needs "
                "a relay.",
@@ -183,7 +192,7 @@ def network_report(instance, adb=None):
         failed = next(step for step in steps if not step.ok)
         problems.append(("This PC can't reach the Internet",
                          "Android uses this PC's connection, so it can't get online either. Check the PC's "
-                         "connection, firewall and any VPN or DNS setting on Windows.",
+                         "connection, firewall and any VPN or DNS setting on this PC.",
                          [f"{failed.name}: {failed.detail}"]))
 
     lines += ["", "Inside Android:"]

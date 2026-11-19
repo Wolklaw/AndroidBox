@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFra
                                QKeySequenceEdit, QLabel, QLineEdit, QMenu, QPlainTextEdit, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import VERSION, claude, diagnostics, installer, instances, keymap, macros, paths, profiles, system, vision
+from .. import VERSION, claude, diagnostics, installer, instances, keymap, macros, native, paths, profiles, system, vision
 from .controller import plural
 from .inspector import Inspector
 from .phone import PhoneView
@@ -635,7 +635,7 @@ class SettingsPage(Page):
                       setting("Mute", "Silences this instance's sound, so a game in the background stays quiet.",
                               muted), divider(),
                       setting("Start with Androidbox", "Starts this instance whenever Androidbox opens, including "
-                                                       "when Windows starts it.", autostart), divider(),
+                                                       f"when {system.SIGN_IN_NAME} starts it.", autostart), divider(),
                       setting("Webcam", "Lets Android apps use your PC's webcam as their camera. Applies the "
                                         "next time Android starts.", webcam), divider(),
                       setting("Block ads", "Blocks ad networks inside apps and games. It can't remove ads that "
@@ -836,7 +836,9 @@ class InstancesPage(Page):
                                        "straight away.", look), divider(),
                       setting("Check for updates", f"You're on Androidbox {VERSION}. Androidbox asks GitHub when it "
                                                    "starts, and every few hours while it runs, whether a newer "
-                                                   "version is out.", updates), divider(),
+                                                   "version is out." + ("" if native.WINDOWS else
+                                                   " It only tells you: on SparkOS a new version arrives with the "
+                                                   "system's own updates."), updates), divider(),
                       setting("Download updates automatically", "Fetches a new version in the background and checks "
                                                                 "it against GitHub's checksum. Androidbox then asks "
                                                                 "before restarting to install it, so it never "
@@ -858,6 +860,7 @@ class InstancesPage(Page):
         boss.setMaximumSequenceLength(1)
         boss.setClearButtonEnabled(True)
         boss.setFixedWidth(170)
+        boss.setEnabled(native.WINDOWS)
         boss.editingFinished.connect(lambda: host.set_boss_key(boss.keySequence().toString()))
         move = button("Move…", host.move_files, kind="secondary")
         default_storage = host.prefs["default_storage_path"]
@@ -867,11 +870,14 @@ class InstancesPage(Page):
                       setting("Keep running in the tray", "Closing the window hides Androidbox and leaves Android "
                                                           "running, so idle games keep going. Quit from the tray "
                                                           "icon.", tray), divider(),
-                      setting("Start with Windows", "Opens Androidbox in the tray when you sign in, and starts the "
-                                                    "instances set to start with Androidbox.", windows), divider(),
-                      setting("Boss key", "A shortcut that works in any program. It hides every Androidbox window "
-                                          "and mutes Android, and brings them back when you press it again. It needs "
-                                          "Ctrl, Alt, Shift or Win with a key.", boss), divider(),
+                      setting("Start with Windows" if native.WINDOWS else "Start when you sign in",
+                              "Opens Androidbox in the tray when you sign in, and starts the "
+                              "instances set to start with Androidbox.", windows), divider(),
+                      setting("Boss key", ("A shortcut that works in any program. It hides every Androidbox window "
+                                           "and mutes Android, and brings them back when you press it again. It needs "
+                                           "Ctrl, Alt, Shift or Win with a key.") if native.WINDOWS else
+                              "Windows only: a Linux desktop doesn't let a program listen for a key while another "
+                              "program has the keyboard.", boss), divider(),
                       setting("Where Androidbox keeps its files", f"{paths.HOME}\nAndroid images, instances and "
                                                                   "profiles. Move them to another drive if this one "
                                                                   "is running out of space.", move), divider(),
@@ -1513,8 +1519,12 @@ class NoAccelerationPage(QWidget):
         box = card(avatar(ICONS["info"], "yellow", 64, glyph=True),
                    label("Turn on virtualization", "Heading"),
                    label("Android needs Windows Hypervisor Platform. Turn it on in Windows Features, restart your "
-                         "PC, then open Androidbox again.", "Muted", wrap=True),
-                   button("Open Windows Features", lambda: subprocess.Popen(["OptionalFeatures.exe"]), size="large"),
+                         "PC, then open Androidbox again." if native.WINDOWS else
+                         "Android needs KVM. Turn on virtualization (SVM or VT-x) in the BIOS, and make sure your "
+                         "user can open /dev/kvm: add yourself to the kvm group, sign in again, then open "
+                         "Androidbox again.", "Muted", wrap=True),
+                   *([button("Open Windows Features", lambda: subprocess.Popen(["OptionalFeatures.exe"]),
+                             size="large")] if native.WINDOWS else []),
                    button("Check again", host.check_acceleration, kind="secondary", size="large"))
         box.setFixedWidth(460)
         layout.addWidget(box)

@@ -1,5 +1,7 @@
 from PySide6.QtGui import QFontDatabase
 
+from .. import native, paths
+
 CLASSIC = {
     "sidebar": "#10131a",
     "main": "#151921",
@@ -118,9 +120,14 @@ class Fonts:
     text = "Segoe UI"
     strong = "Segoe UI Semibold"
     icons = "Segoe MDL2 Assets"
+    # Added to every heading style: a family that is already semibold needs nothing, one that isn't gets the weight
+    strong_weight = ""
 
     @classmethod
     def load(cls):
+        if not native.WINDOWS:
+            cls.load_linux()
+            return
         available = set(QFontDatabase.families())
 
         def pick(*names):
@@ -130,6 +137,21 @@ class Fonts:
         cls.strong = pick("Chakra Petch SemiBold", "Chakra Petch", "Bahnschrift SemiBold", "Bahnschrift",
                           "Segoe UI Semibold", "Segoe UI") if glitched() else pick("Segoe UI Semibold", "Segoe UI")
         cls.icons = pick("Segoe Fluent Icons", "Segoe MDL2 Assets")
+
+    @classmethod
+    def load_linux(cls):
+        # Segoe isn't there. The icons come from the font Androidbox ships (tools/make_icon_font.py), and the text
+        # from the first of the usual desktop fonts that is installed, else whatever the desktop itself uses
+        for file in (paths.BUNDLE / "assets").glob("androidbox-icons.ttf"):
+            if QFontDatabase.addApplicationFont(str(file)) >= 0:
+                cls.icons = "Androidbox Icons"
+        available = set(QFontDatabase.families())
+        system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
+        names = ("Inter", "Noto Sans", "Cantarell", "Open Sans", "DejaVu Sans")
+        cls.text = next((name for name in names if name in available), system)
+        heading = next((name for name in ("Chakra Petch SemiBold", "Chakra Petch") if name in available), None)             if glitched() else None
+        cls.strong = heading or cls.text
+        cls.strong_weight = "" if heading == "Chakra Petch SemiBold" else "font-weight: 600;"
 
 
 def stylesheet():
@@ -198,32 +220,32 @@ def stylesheet():
     }}
     #HeaderTitle {{
         color: {c["bright"]};
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 14pt;
     }}
     #Brand {{
         color: {c["bright"]};
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 12pt;
     }}
     #Title {{
         color: {c["bright"]};
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 11pt;
     }}
     #Heading {{
         color: {c["bright"]};
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 18pt;
     }}
     #Subheading {{
         color: {c["bright"]};
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 10.5pt;
     }}
     #Section {{
         color: {c["faint"]};
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 9pt;
     }}
     #Muted {{
@@ -247,7 +269,7 @@ def stylesheet():
         border-radius: {mid};
         padding: 0 18px;
         min-height: 36px;
-        font-family: "{Fonts.strong}";
+        font-family: "{Fonts.strong}"; {Fonts.strong_weight}
         font-size: 10pt;
         color: {c["on_accent"]};
         background: {c["accent"]};

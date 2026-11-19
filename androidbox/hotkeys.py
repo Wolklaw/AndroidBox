@@ -1,8 +1,12 @@
 import ctypes
-from ctypes import wintypes
 
 from PySide6.QtCore import QAbstractNativeEventFilter, Qt
 from PySide6.QtGui import QKeySequence
+
+from .native import WINDOWS
+
+if WINDOWS:
+    from ctypes import wintypes
 
 WM_HOTKEY = 0x0312
 NO_REPEAT = 0x4000
@@ -36,15 +40,21 @@ def parse(text):
 
 
 class Hotkeys(QAbstractNativeEventFilter):
-    """Shortcuts that work while another program has the keyboard"""
+    """Shortcuts that work while another program has the keyboard. Windows only: Linux desktops, Wayland above all,
+    don't let a program listen to the keyboard while another one has it, so there every shortcut is refused and the
+    ones that work are the ones inside Androidbox's own windows"""
+    supported = WINDOWS
 
     def __init__(self, app):
         super().__init__()
         self.actions = {}
-        app.installNativeEventFilter(self)
+        if self.supported:
+            app.installNativeEventFilter(self)
 
     def set(self, wanted):
         """Registers {shortcut: callback}, and returns the shortcuts Windows refused, usually because they're taken"""
+        if not self.supported:
+            return list(wanted)
         for identifier in self.actions:
             ctypes.windll.user32.UnregisterHotKey(None, identifier)
         self.actions = {}

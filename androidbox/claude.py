@@ -47,6 +47,8 @@ stop_app, list_apps, current_app, wait_for_app, open_url, clear_app_data, push_f
 instances from the Androidbox window. Either way, the helper refuses to run while the switch is off.
 """
 
+# What a shell on this system calls Python (Fedora, and so SparkOS, only has python3 until told otherwise)
+PYTHON = "python" if os.name == "nt" else "python3"
 HOME_LINE = ("# This script lives in the claude folder inside Androidbox's own folder, wherever that has been moved to\n"
              "HOME =Path(__file__).resolve().parent.parent")
 
@@ -62,7 +64,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 {HOME_LINE}
-ADB = HOME / "sdk" / "platform-tools" / "adb.exe"
+ADB = HOME / "sdk" / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
 ENVIRONMENT = {**os.environ, "ANDROID_ADB_SERVER_PORT": "{ADB_SERVER_PORT}"}
 CONSOLE_PORTS = {CONSOLE_PORTS}
 KEYS = {"BACK": "KEYCODE_BACK", "HOME": "KEYCODE_HOME", "ENTER": "KEYCODE_ENTER", "MENU": "KEYCODE_MENU",
@@ -113,8 +115,12 @@ def running_ports():
     # The emulator records which instance is on which port while it runs. That is the truth: the port an
     # instance was given by the build that started it needn't be the one its slot in instances.json suggests
     ports = {}
-    for folder in {Path(tempfile.gettempdir()) / "avd" / "running",
-                   Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Temp" / "avd" / "running"}:
+    folders = {Path(tempfile.gettempdir()) / "avd" / "running",
+               Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Temp" / "avd" / "running",
+               Path(os.environ.get("XDG_RUNTIME_DIR") or "/nonexistent") / "avd" / "running",
+               Path("/tmp") / f"android-{os.environ.get('USER', '')}" / "avd" / "running",
+               Path.home() / ".android" / "avd" / "running"}
+    for folder in folders:
         for ini in folder.glob("pid_*.ini"):
             try:
                 values = dict(line.split("=", 1) for line in ini.read_text().splitlines() if "=" in line)
@@ -641,7 +647,8 @@ def enable():
     TOOL.write_text(TOOL_TEXT.replace("{CONSOLE_PORTS}", repr(list(instances.CONSOLE_PORTS)))
                     .replace("{ADB_SERVER_PORT}", emulator.ADB_SERVER_PORT)
                     .replace("{HOME_LINE}", HOME_LINE), encoding="utf-8")
-    GUIDE.write_text(GUIDE_TEXT.format(tool=TOOL), encoding="utf-8")
+    GUIDE.write_text(GUIDE_TEXT.replace('python "{tool}"', f'{PYTHON} "{{tool}}"').format(tool=TOOL),
+                     encoding="utf-8")
     threading.Thread(target=register, daemon=True).start()
 
 
@@ -651,7 +658,8 @@ def disable():
 
 
 CONFIG = Path.home() / ".claude.json"
-DESKTOP_CONFIG = Path(os.environ.get("APPDATA", str(Path.home()))) / "Claude" / "claude_desktop_config.json"
+DESKTOP_CONFIG = (Path(os.environ["APPDATA"]) if os.environ.get("APPDATA") else
+                  Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")) / "Claude" / "claude_desktop_config.json"
 SKILL = Path.home() / ".claude" / "skills" / "androidbox" / "SKILL.md"
 SKILL_TEXT = """---
 name: androidbox
@@ -674,7 +682,7 @@ def python_command():
     if not getattr(sys, "frozen", False):
         console = Path(sys.executable).with_name("python.exe")
         return str(console if console.exists() else sys.executable)
-    for name in ("python", "py"):
+    for name in ("python", "py") if os.name == "nt" else ("python3", "python"):
         found = shutil.which(name)
         if found and "WindowsApps" not in found:
             return found
@@ -747,7 +755,8 @@ def register():
     try:
         SKILL.parent.mkdir(parents=True, exist_ok=True)
         from . import emulator
-        SKILL.write_text(SKILL_TEXT.format(port=emulator.ADB_SERVER_PORT, tool=TOOL), encoding="utf-8")
+        SKILL.write_text(SKILL_TEXT.replace('python "{tool}"', f'{PYTHON} "{{tool}}"')
+                         .format(port=emulator.ADB_SERVER_PORT, tool=TOOL), encoding="utf-8")
     except OSError:
         pass
     return done or (mcp_command("remove", "--scope", "user", "androidbox")

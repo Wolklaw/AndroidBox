@@ -3,7 +3,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-LOCAL = Path(os.environ["LOCALAPPDATA"])
+from . import native
+from .native import WINDOWS, exe
+
+# Where per-user program data lives: %LOCALAPPDATA% on Windows, ~/.local/share (XDG) on Linux
+if WINDOWS:
+    LOCAL = Path(os.environ["LOCALAPPDATA"])
+else:
+    LOCAL = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
 DEFAULT_HOME = LOCAL / "Androidbox"
 # 1.9.0 and 1.9.1 were briefly released as DroidCore. Their folder is renamed back in place (instant on one
 # drive), so nothing downloaded or created under that name is lost. If it is locked, it keeps being used
@@ -48,14 +55,30 @@ INSTANCES = DATA / "instances.json"
 SETTINGS = DATA / "settings.json"
 CRASH_LOG = DATA / "crash.log"
 
-EMULATOR = SDK / "emulator" / "emulator.exe"
-LEGACY_EMULATOR = SDK / "emulator-legacy" / "emulator.exe"
-ADB = SDK / "platform-tools" / "adb.exe"
-DISCOVERY = {LOCAL / "Temp" / "avd" / "running", Path(tempfile.gettempdir()) / "avd" / "running"}
+EMULATOR = SDK / "emulator" / exe("emulator")
+LEGACY_EMULATOR = SDK / "emulator-legacy" / exe("emulator")
+ADB = SDK / "platform-tools" / exe("adb")
+
+
+def discovery_folders():
+    """Where a running emulator leaves its pid_*.ini file, with the port and gRPC token Androidbox looks for"""
+    found = {Path(tempfile.gettempdir()) / "avd" / "running"}
+    if native.WINDOWS:
+        found.add(LOCAL / "Temp" / "avd" / "running")
+    else:
+        runtime = os.environ.get("XDG_RUNTIME_DIR")
+        if runtime:
+            found.add(Path(runtime) / "avd" / "running")
+        found.add(Path(f"/tmp/android-{os.environ.get('USER') or os.getuid()}") / "avd" / "running")
+        found.add(Path.home() / ".android" / "avd" / "running")
+    return found
+
+
+DISCOVERY = discovery_folders()
 CONSOLE_TOKEN = Path.home() / ".emulator_console_auth_token"
 
 BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
-ICON = BUNDLE / "assets" / "androidbox.ico"
+ICON = BUNDLE / "assets" / ("androidbox.ico" if WINDOWS else "androidbox.png")
 
 
 def write_text(path, text, encoding=None):

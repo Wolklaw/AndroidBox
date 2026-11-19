@@ -1,7 +1,8 @@
 import ctypes
 import time
 import warnings
-from ctypes import wintypes
+
+from . import native
 
 DEADZONE = 0.22
 TRIGGER = 0.25
@@ -100,18 +101,18 @@ class SdlPads:
 
 
 class XInputPad(ctypes.Structure):
-    _fields_ = [("buttons", wintypes.WORD), ("left_trigger", ctypes.c_ubyte), ("right_trigger", ctypes.c_ubyte),
+    _fields_ = [("buttons", ctypes.c_ushort), ("left_trigger", ctypes.c_ubyte), ("right_trigger", ctypes.c_ubyte),
                 ("lx", ctypes.c_short), ("ly", ctypes.c_short), ("rx", ctypes.c_short), ("ry", ctypes.c_short)]
 
 
 class XInputState(ctypes.Structure):
-    _fields_ = [("packet", wintypes.DWORD), ("pad", XInputPad)]
+    _fields_ = [("packet", ctypes.c_ulong), ("pad", XInputPad)]
 
 
 class XInputPads:
     def __init__(self):
         self.read = None
-        for name in ("xinput1_4", "xinput1_3", "xinput9_1_0"):
+        for name in ("xinput1_4", "xinput1_3", "xinput9_1_0") if native.WINDOWS else ():
             try:
                 self.read = ctypes.WinDLL(name).XInputGetState
                 break

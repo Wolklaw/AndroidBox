@@ -1,4 +1,3 @@
-import ctypes
 import random
 import re
 import os
@@ -13,8 +12,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QHB
                                QMenu, QPlainTextEdit, QScrollArea, QStackedWidget, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 
-from .. import (VERSION, browser, claude, diagnostics, emulator, installer, instances, keymap, macros, paths,
-                profiles, relocate, settings, system, updates)
+from .. import (VERSION, browser, claude, diagnostics, emulator, installer, instances, keymap, macros, native,
+                paths, profiles, relocate, settings, system, updates)
 from ..hotkeys import Hotkeys
 from . import tasks
 from .controller import Controller, plural
@@ -875,8 +874,9 @@ class MainWindow(QMainWindow, ScreenActions):
         android = QComboBox()
         android.addItem("Android 16 (recommended)", "36")
         android.addItem("Android 11 (runs older 32-bit games)", "30")
-        android.addItem("Android 4.1 — for OUYA/GameStick games (experimental, slow, no Play Store)",
-                        installer.LEGACY_API)
+        if installer.LEGACY_SUPPORTED:
+            android.addItem("Android 4.1 — for OUYA/GameStick games (experimental, slow, no Play Store)",
+                            installer.LEGACY_API)
         storage = QComboBox()
         for size in instances.DISK_SIZES:
             storage.addItem(f"{size} GB" + ("  (big games need more)" if size == instances.DISK_SIZES[0] else ""), size)
@@ -1589,7 +1589,7 @@ class MainWindow(QMainWindow, ScreenActions):
         arguments = ["--instance", instance.id] + (["--launch", package, "--fullscreen"] if package else [])
         desktop = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation))
         text = f"Opens {name} in Androidbox" if package else f"Starts {instance.name} in Androidbox"
-        self.run(lambda: system.shortcut(desktop / f"{title}.lnk", arguments, text),
+        self.run(lambda: system.shortcut(desktop / f"{title}{system.SHORTCUT_SUFFIX}", arguments, text),
                  lambda _: self.toast(f"Put {title} on your desktop", "good"),
                  lambda error: self.toast(f"Couldn't make the shortcut: {error}", "bad"))
 
@@ -1676,8 +1676,9 @@ class MainWindow(QMainWindow, ScreenActions):
         for popout in self.hidden_popouts:
             popout.show()
         self.hidden_popouts = []
-        ctypes.windll.user32.SetForegroundWindow(int(self.winId()))
+        native.raise_window(self.winId())
         self.raise_()
+        self.activateWindow()
         if self.pending_update:
             QTimer.singleShot(600, self.offer_update)
 
@@ -1696,7 +1697,10 @@ class MainWindow(QMainWindow, ScreenActions):
             if macro.get("global") and macro.get("hotkey"):
                 wanted.setdefault(macro["hotkey"], lambda text=macro["hotkey"]: self.global_macro(text))
         refused = self.hotkeys.set(wanted)
-        if refused and announce:
+        if refused and announce and not self.hotkeys.supported:
+            self.toast("Shortcuts that work while another program is in front aren't available on Linux, because "
+                       "the desktop doesn't let a program listen for them", "bad")
+        elif refused and announce:
             self.toast(f"Windows won't give Androidbox {', '.join(refused)}. Use Ctrl, Alt, Shift or Win with a key, "
                        "and one no other program has taken", "bad")
 
@@ -1733,10 +1737,10 @@ class MainWindow(QMainWindow, ScreenActions):
         try:
             system.start_with_windows(enabled)
         except OSError as error:
-            self.toast(f"Windows wouldn't allow that: {error}", "bad")
+            self.toast(f"{system.SIGN_IN_NAME.capitalize()} wouldn't allow that: {error}", "bad")
             return
         self.toast("Androidbox will open in the tray when you sign in" if enabled else "Androidbox no longer starts "
-                   "with Windows")
+                   f"with {system.SIGN_IN_NAME}")
 
     def move_files(self):
         if any(controller.state not in ("off", "crashed") for controller in self.controllers.values()):

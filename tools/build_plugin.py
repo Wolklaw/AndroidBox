@@ -9,7 +9,9 @@ sys.path.insert(0, str(ROOT))
 from androidbox import claude, emulator, instances  # noqa: E402
 
 PLUGIN_HOME = '''# Installed as a Claude Code plugin, so Androidbox's folder isn't next to this script: find it
-HOME = Path(os.environ.get("ANDROIDBOX_HOME") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Androidbox")'''
+DATA = (Path(os.environ["LOCALAPPDATA"]) if os.environ.get("LOCALAPPDATA")
+        else Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"))
+HOME = Path(os.environ.get("ANDROIDBOX_HOME") or DATA / "Androidbox")'''
 
 text = (claude.TOOL_TEXT.replace("{CONSOLE_PORTS}", repr(list(instances.CONSOLE_PORTS)))
         .replace("{ADB_SERVER_PORT}", emulator.ADB_SERVER_PORT).replace("{HOME_LINE}", PLUGIN_HOME))

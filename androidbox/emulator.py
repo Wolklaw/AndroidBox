@@ -1,5 +1,4 @@
 import contextlib
-import ctypes
 import os
 import re
 import shutil
@@ -11,7 +10,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import bridge, installer, instances, paths, socks_relay, system
+from . import bridge, installer, instances, native, paths, socks_relay
 
 AD_BLOCKING_DNS = "dns.adguard-dns.com"
 # Tools like Android Studio and Godot restart the shared adb server on 5037 whenever they like, which drops
@@ -54,58 +53,10 @@ def environment():
 def run(args, timeout=30):
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, env=environment(),
-                                creationflags=subprocess.CREATE_NO_WINDOW, encoding="utf-8", errors="replace")
+                                encoding="utf-8", errors="replace", **native.quiet_options())
     except subprocess.TimeoutExpired:
         return -1, f"No answer after {timeout} seconds"
     return result.returncode, (result.stdout + result.stderr).strip()
-
-
-@contextlib.contextmanager
-def without_crash_dialogs():
-    # Child processes inherit the error mode: a qemu crash then ends the process instead of
-    # leaving a "Fail Fast Exception" box that nobody can see waiting behind the windows
-    kernel32 = ctypes.windll.kernel32
-    previous = kernel32.SetErrorMode(0)
-    kernel32.SetErrorMode(previous | 0x0003)  # SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX
-    try:
-        yield
-    finally:
-        kernel32.SetErrorMode(previous)
-
-
-def close_crash_dialogs():
-    """Closes any Windows crash box that a qemu process has left on screen. Windows shows one for a fail fast
-    crash whatever the error mode says, and the process stays frozen behind it until somebody clicks OK"""
-    user32 = ctypes.windll.user32
-    user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_size_t]
-    user32.GetWindowTextW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
-    user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
-    found = []
-
-    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-    def visit(window, _):
-        if user32.IsWindowVisible(window):
-            title = ctypes.create_unicode_buffer(256)
-            user32.GetWindowTextW(window, title, 256)
-            if title.value.lower().startswith("qemu-system"):
-                found.append(window)
-        return True
-
-    user32.EnumWindows(visit, 0)
-    for window in found:
-        user32.PostMessageW(window, 0x0010, 0, 0)  # WM_CLOSE
-    return bool(found)
-
-
-def exclude_from_error_reporting():
-    # The emulator installs its own crash handler, which can undo the error mode above, so also tell Windows
-    # not to show its error dialog for qemu (per user, no admin needed)
-    try:
-        wer = ctypes.windll.wer
-        for name in ("qemu-system-x86_64-headless.exe", "qemu-system-x86_64.exe"):
-            wer.WerAddExcludedApplication(name, False)
-    except (OSError, AttributeError):
-        pass
 
 
 def hardware_acceleration():
@@ -166,10 +117,10 @@ class Emulator:
         self.quick_boot = (self.instance.folder / "snapshots" / "default_boot").exists() and not (wipe or fresh)
         self.started = time.monotonic()
         paths.LOGS.mkdir(parents=True, exist_ok=True)
-        exclude_from_error_reporting()
-        with open(self.instance.log, "w") as log, without_crash_dialogs():
+        native.exclude_from_error_reporting()
+        with open(self.instance.log, "w") as log, native.without_crash_dialogs():
             self.process = subprocess.Popen(args, env=environment(), stdout=log, stderr=subprocess.STDOUT,
-                                            creationflags=subprocess.CREATE_NO_WINDOW)
+                                            **native.child_options())
 
     def sdcard(self):
         """The SD card image of an Android 4.1 instance, made on first use. Android 4.1 keeps every app's saves,
@@ -178,7 +129,7 @@ class Emulator:
         card = self.instance.folder / "sdcard.img"
         if card.exists():
             return card
-        maker = paths.LEGACY_EMULATOR.with_name("mksdcard.exe")
+        maker = paths.LEGACY_EMULATOR.with_name(native.exe("mksdcard"))
         if not maker.exists():
             return None
         code, _ = run([str(maker), instances.LEGACY_SDCARD, str(card)], timeout=120)
@@ -193,10 +144,17 @@ class Emulator:
             while process_alive(pid) and time.monotonic() < deadline:
                 time.sleep(0.2)
             if process_alive(pid):
-                run(["taskkill", "/F", "/T", "/PID", str(pid)])
+                native.kill_tree(pid)
                 time.sleep(1)
         if not self.locked():
+            self.clear_lock()
+
+    def clear_lock(self):
+        # Windows makes the lock a folder with the process id inside, Linux a plain file holding it
+        if self.lock.is_dir():
             shutil.rmtree(self.lock, ignore_errors=True)
+        else:
+            self.lock.unlink(missing_ok=True)
 
     def running(self):
         if self.process and self.process.poll() is None:
@@ -261,7 +219,7 @@ class Emulator:
             # snapshot is on disk there is nothing left worth waiting for
             if self.snapshot_saved(since):
                 break
-            close_crash_dialogs()
+            native.close_crash_dialogs()
             time.sleep(0.1)
         if not self.fully_stopped():
             self.kill()
@@ -295,12 +253,13 @@ class Emulator:
         if pid:
             pids.append(pid)
         for pid in pids:
-            run(["taskkill", "/F", "/T", "/PID", str(pid)])
+            native.kill_tree(pid)
 
     def qemu_pid(self):
         try:
-            return int((self.lock / "pid").read_text())
-        except (OSError, ValueError):
+            file = self.lock / "pid" if self.lock.is_dir() else self.lock
+            return int(file.read_text().split()[0])
+        except (OSError, ValueError, IndexError):
             return None
 
     def console(self, command, timeout=5):
@@ -375,7 +334,7 @@ class Emulator:
         size = Path(file).stat().st_size
         process = subprocess.Popen([str(paths.ADB), "-s", self.instance.serial, "push", str(file), target],
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=environment(),
-                                   creationflags=subprocess.CREATE_NO_WINDOW, encoding="utf-8", errors="replace")
+                                   encoding="utf-8", errors="replace", **native.quiet_options())
         deadline = time.monotonic() + max(600, size / 2e6)
         while process.poll() is None:
             if time.monotonic() > deadline:
@@ -546,8 +505,8 @@ class Emulator:
         pid = self.qemu_pid()
         if not pid:
             return None
-        seconds = system.process_times(pid)
-        memory = system.process_memory(pid)
+        seconds = native.process_times(pid)
+        memory = native.process_memory(pid)
         return None if seconds is None or memory is None else (time.monotonic(), seconds, memory)
 
     def foreground_app(self):
@@ -565,10 +524,7 @@ class Emulator:
         pid = self.qemu_pid()
         if not pid:
             return
-        handle = ctypes.windll.kernel32.OpenProcess(0x0200, False, pid)
-        if handle:
-            ctypes.windll.kernel32.SetPriorityClass(handle, 0x4000 if eco else 0x20)
-            ctypes.windll.kernel32.CloseHandle(handle)
+        native.set_priority(pid, eco)
 
     @property
     def recording(self):
@@ -609,20 +565,8 @@ def discovery_values(ini, modified):
     return values
 
 
-def process_alive(pid):
-    handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
-    if not handle:
-        return False
-    code = ctypes.c_ulong()
-    ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-    ctypes.windll.kernel32.CloseHandle(handle)
-    return code.value == 259
-
-
-def short_path(path):
-    buffer = ctypes.create_unicode_buffer(1024)
-    ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
-    return buffer.value or str(path)
+process_alive = native.process_alive
+short_path = native.short_path
 
 
 def snapshot_name(name):

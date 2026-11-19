@@ -16,6 +16,10 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 - Tests, run before every release
 
 ## Next
+- Check the Linux build on a real SparkOS desktop: start an instance, controllers, the tray and desktop shortcuts, the
+  Graphics card setting under Wayland. So far it is checked by tests and a headless start in CI only
+- Linux: the Android 4.1 image (needs the older emulator's Linux build checked), and global shortcuts through the
+  desktop's GlobalShortcuts portal
 - Check macro smart steps on a running instance and tune how strict Strict, Normal and Loose are, and how fast
   the picture search is on a busy game screen
 - Check every new feature on a running instance, on Android 16 and on the Android 4.1 image

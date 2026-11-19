@@ -1,4 +1,3 @@
-import ctypes
 import json
 import os
 import sys
@@ -7,7 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from .. import paths, settings, system
+from .. import VERSION, native, paths, settings, system
 from . import theme, widgets
 from .theme import Fonts, stylesheet
 from .window import MainWindow
@@ -35,12 +34,6 @@ def parse(arguments):
     return request
 
 
-def another_copy_running():
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateMutexW(None, False, "Local\\Androidbox")
-    return ctypes.get_last_error() == 183
-
-
 def hand_over(request):
     # The copy that is already running does what this one was asked to, such as opening a game
     socket = QLocalSocket()
@@ -50,10 +43,7 @@ def hand_over(request):
         socket.waitForBytesWritten(2000)
         socket.disconnectFromServer()
         return True
-    window = ctypes.windll.user32.FindWindowW(None, TITLE)
-    if window:
-        ctypes.windll.user32.ShowWindow(window, 9)
-        ctypes.windll.user32.SetForegroundWindow(window)
+    native.show_existing_window(TITLE)
     return False
 
 
@@ -93,12 +83,15 @@ def files_missing():
 
 
 def main():
+    if "--version" in sys.argv[1:]:
+        print(f"Androidbox {VERSION}")
+        return
     app = QApplication(sys.argv)
     request = parse(sys.argv[1:])
-    if another_copy_running():
+    if native.another_copy_running(TITLE):
         hand_over(request)
         return
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(TITLE)
+    native.name_process(app, TITLE)
     app.setApplicationName(TITLE)
     app.setWindowIcon(QIcon(str(paths.ICON)))
     app.setQuitOnLastWindowClosed(False)

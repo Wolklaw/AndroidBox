@@ -10,8 +10,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 # Installed as a Claude Code plugin, so Androidbox's folder isn't next to this script: find it
-HOME = Path(os.environ.get("ANDROIDBOX_HOME") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Androidbox")
-ADB = HOME / "sdk" / "platform-tools" / "adb.exe"
+DATA = (Path(os.environ["LOCALAPPDATA"]) if os.environ.get("LOCALAPPDATA")
+        else Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"))
+HOME = Path(os.environ.get("ANDROIDBOX_HOME") or DATA / "Androidbox")
+ADB = HOME / "sdk" / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
 ENVIRONMENT = {**os.environ, "ANDROID_ADB_SERVER_PORT": "5137"}
 CONSOLE_PORTS = [5580, 5582, 5584, 5578, 5576, 5574, 5572, 5570, 5568, 5566, 5564, 5562, 5560, 5558, 5556, 5554]
 KEYS = {"BACK": "KEYCODE_BACK", "HOME": "KEYCODE_HOME", "ENTER": "KEYCODE_ENTER", "MENU": "KEYCODE_MENU",
@@ -62,8 +64,12 @@ def running_ports():
     # The emulator records which instance is on which port while it runs. That is the truth: the port an
     # instance was given by the build that started it needn't be the one its slot in instances.json suggests
     ports = {}
-    for folder in {Path(tempfile.gettempdir()) / "avd" / "running",
-                   Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Temp" / "avd" / "running"}:
+    folders = {Path(tempfile.gettempdir()) / "avd" / "running",
+               Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Temp" / "avd" / "running",
+               Path(os.environ.get("XDG_RUNTIME_DIR") or "/nonexistent") / "avd" / "running",
+               Path("/tmp") / f"android-{os.environ.get('USER', '')}" / "avd" / "running",
+               Path.home() / ".android" / "avd" / "running"}
+    for folder in folders:
         for ini in folder.glob("pid_*.ini"):
             try:
                 values = dict(line.split("=", 1) for line in ini.read_text().splitlines() if "=" in line)

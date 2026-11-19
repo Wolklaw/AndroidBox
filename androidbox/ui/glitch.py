@@ -2,26 +2,17 @@
 window opens, and short bursts where the magenta and cyan channels slip out of register. Never a strobe: a burst
 lasts about a third of a second and comes every several seconds. With Windows' animation effects switched off,
 only the still colour split remains."""
-import ctypes
 import random
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QLinearGradient, QPainter
 from PySide6.QtWidgets import QLabel, QWidget
 
+from .. import native
 from . import theme
 
 BURST_FRAMES = 6
-SPI_GETCLIENTAREAANIMATION = 0x1042
-
-
-def animations_allowed():
-    on = ctypes.c_int(1)
-    try:
-        ctypes.windll.user32.SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, ctypes.byref(on), 0)
-    except (AttributeError, OSError):
-        pass
-    return bool(on.value)
+animations_allowed = native.animations_allowed
 
 
 class SplitLabel(QLabel):

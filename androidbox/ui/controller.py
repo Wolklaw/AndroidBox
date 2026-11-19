@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QStandardPaths, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QPixmap
 
-from .. import emulator, installer, instances, macros, paths, profiles, system
+from .. import emulator, installer, instances, macros, native, paths, profiles, system
 from ..bridge import Bridge
 from .tasks import background, on_main_thread
 
@@ -20,6 +20,12 @@ def media_folder(kind):
     folder = Path(QStandardPaths.writableLocation(location)) / "Androidbox"
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def saved_in(path):
+    """Where a saved picture or recording is, as the user would say it: Pictures/Androidbox/name.png"""
+    parts = Path(path).parts
+    return os.sep.join(parts[-3:] if Path(path).suffix else parts[-2:])
 
 
 def file_stamp(name):
@@ -393,7 +399,7 @@ class Controller(QObject):
             file.write_bytes(bridge.screenshot())
             return file
 
-        background(work, lambda file: self.notify.emit(f"Screenshot saved to Pictures\\Androidbox\\{file.name}", "good"))
+        background(work, lambda file: self.notify.emit(f"Screenshot saved to {saved_in(file)}", "good"))
 
     def toggle_video(self):
         if self.recording_video:
@@ -436,9 +442,9 @@ class Controller(QObject):
             if not ok:
                 self.notify.emit("The recording couldn't be saved", "bad")
             elif parts > 1:
-                self.notify.emit(f"Recording saved to Videos\\Androidbox in {parts} parts", "good")
+                self.notify.emit(f"Recording saved to {saved_in(file.parent)} in {parts} parts", "good")
             else:
-                self.notify.emit(f"Recording saved to Videos\\Androidbox\\{file.name}", "good")
+                self.notify.emit(f"Recording saved to {saved_in(file)}", "good")
 
         background(lambda: self.emulator.stop_recording(file), saved, lambda _: saved(False))
 
@@ -602,4 +608,4 @@ class Controller(QObject):
 
     def open_log(self):
         if self.instance.log.exists():
-            os.startfile(self.instance.log)
+            native.open_file(self.instance.log)

@@ -93,6 +93,42 @@ the tray. Androidbox keeps itself up to date (see [Updates](#updates)), and you 
 installer over the old one. Your instances and settings stay where they are, and an older per-user install
 is replaced.
 
+### On Linux
+
+Androidbox also runs on Linux, and is meant to ship with [SparkOS](https://github.com/Wolklaw/sparkos). The Linux
+build is new: its tests run on Linux and a headless start of the installed app is checked in CI
+([linux.yml](.github/workflows/linux.yml)), but no Android has been run on it by hand yet. Please report what
+you find.
+
+**You need:** a 64-bit x86 Linux desktop (KDE Plasma or GNOME), Python 3.10 or newer, **KVM** (turn on SVM or VT-x
+in the BIOS; `/dev/kvm` must exist and be usable by your user, which is the default on current desktops), and the
+same disk space as on Windows.
+
+```bash
+git clone https://github.com/Wolklaw/Androidbox.git
+cd Androidbox
+bash packaging/linux/install.sh --user --deps    # --deps installs libraries with dnf; run it with sudo for that part
+androidbox
+```
+
+Leave out `--user` (and run with `sudo`) to install for every user under `/usr`, which is what the SparkOS image
+does. `bash packaging/linux/install.sh --uninstall` removes it again, and your Androids stay in
+`~/.local/share/Androidbox`. On Debian or Ubuntu install `python3-venv libsdl2-2.0-0 libxcb-cursor0
+libxkbcommon-x11-0 libegl1 libnss3 libpulse0` first. Then open Androidbox and choose **Download and install**,
+as on Windows.
+
+What is different from Windows:
+- **Global shortcuts and the boss key don't work.** A Linux desktop doesn't let a program listen for keys while
+  another program has the keyboard. Shortcuts inside Androidbox's own windows work as before.
+- **The Android 4.1 image (OUYA and GameStick) isn't offered yet.** It needs an older emulator build, and only the
+  Windows one has been checked.
+- **No self-update.** SparkOS brings new versions with its own updates, and Androidbox only tells you about one if
+  you turn on **Check for updates**.
+- **Eco mode can lower the emulator's priority but not raise it back** until the instance restarts: Linux lets
+  a normal user only make a process nicer.
+- **Desktop shortcuts** are `.desktop` files, and *Start when you sign in* adds one to `~/.config/autostart`.
+- Controllers work through SDL (install `SDL2` if it's missing).
+
 ## Features
 
 ### Android 16 with Google Play
@@ -542,6 +578,12 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\pythonw Androidbox.pyw
 ```
+
+On Linux, `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python Androidbox.pyw`
+(or `python -m androidbox`). Everything that differs between the two systems lives in `androidbox/native.py`. The
+interface's icons are Segoe MDL2 glyphs on Windows and a font made by `tools/make_icon_font.py` on Linux
+(`assets/androidbox-icons.ttf`, which is committed); run the script again after changing an icon. The Linux tests are
+in `tests/test_linux.py`.
 
 <details>
 <summary><b>What's in the source</b></summary>
