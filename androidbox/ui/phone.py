@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QWidget
 from .. import emulator, gamepad, installer, keymap, macros
 from ..bridge import KEYDOWN, KEYUP
 from .theme import COLORS
-from .widgets import button, text_font
+from .widgets import button, styled, text_font
 
 MOUSE_TOUCH = 0
 SCROLL_TOUCH = 9
@@ -206,12 +206,12 @@ class Gestures:
 class EditBar(QFrame):
     def __init__(self, phone):
         super().__init__(phone)
-        self.setStyleSheet(f"EditBar {{ background: {COLORS['surface']}; border-radius: 10px; }}")
+        styled(self, lambda bar: bar.setStyleSheet(f"EditBar {{ background: {COLORS['surface']}; border-radius: 10px; }}"))
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 8, 8, 8)
         layout.setSpacing(6)
         self.hint = QLabel()
-        self.hint.setStyleSheet(f"color: {COLORS['text']}; background: transparent;")
+        styled(self.hint, lambda hint: hint.setStyleSheet(f"color: {COLORS['text']}; background: transparent;"))
         self.hint.setMinimumWidth(300)
         layout.addWidget(self.hint)
         add = button("Add control", kind="secondary")

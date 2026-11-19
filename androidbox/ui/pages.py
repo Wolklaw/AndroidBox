@@ -17,7 +17,7 @@ from . import theme
 from .theme import COLORS, ICONS
 from .tools import ToolRail
 from .widgets import (Modal, Toggle, avatar, button, card, column, confirm, divider, glyph_css, label, recolor,
-                      row)
+                      row, styled)
 
 STATES = {"on": "Running", "booting": "Starting…", "stopping": "Shutting down…", "crashed": "Stopped unexpectedly"}
 
@@ -167,7 +167,8 @@ def show_text(parent, title, text):
     page = QPlainTextEdit(text)
     page.setReadOnly(True)
     page.setMinimumHeight(380)
-    page.setStyleSheet(f"background: {COLORS['input']}; border: none; border-radius: 8px; padding: 8px;")
+    styled(page, lambda widget: widget.setStyleSheet(
+        f"background: {COLORS['input']}; border: none; border-radius: 8px; padding: 8px;"))
     modal.add(page)
     modal.action("Close")
     return modal.open()
@@ -179,12 +180,12 @@ def menu_button(actions):
     more.setFixedSize(34, 34)
     more.setCursor(Qt.CursorShape.PointingHandCursor)
     more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-    more.setStyleSheet(f"""
+    styled(more, lambda widget: widget.setStyleSheet(f"""
         QToolButton {{ border: none; border-radius: 8px; background: {COLORS["raised"]}; color: {COLORS["text"]};
                        {glyph_css(14)} }}
-        QToolButton:hover {{ background: #383c42; }}
+        QToolButton:hover {{ background: {COLORS["raised_hover"]}; }}
         QToolButton::menu-indicator {{ image: none; width: 0; }}
-    """)
+    """))
     menu = QMenu(more)
     for text, action in actions:
         if text is None:
@@ -203,7 +204,7 @@ class StateView(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(10)
-        self.badge = avatar(ICONS["screen"], COLORS["surface"], 88, glyph=True)
+        self.badge = avatar(ICONS["screen"], "surface", 88, glyph=True)
         self.title = label("", "Heading")
         self.text = label("", "Muted", wrap=True)
         self.text.setFixedWidth(420)
@@ -262,7 +263,7 @@ class StateView(QWidget):
             self.bar.timer.start()
         else:
             self.bar.timer.stop()
-        recolor(self.badge, COLORS["danger"] if state == "crashed" and not popped else COLORS["surface"])
+        recolor(self.badge, "danger" if state == "crashed" and not popped else "surface")
         if popped:
             self.actions.addWidget(button("Bring it back", self.host.toggle_popout, size="large"))
         elif state in ("off", "crashed"):
@@ -762,8 +763,8 @@ class InstancesPage(Page):
             thumb = QLabel(instance.initials)
             thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
             thumb.setFixedSize(66, max(66, round(66 * instance.height / instance.width)))
-            thumb.setStyleSheet(f"background: {COLORS['input']}; border-radius: 8px; color: {COLORS['faint']}; "
-                                "font-size: 18pt;")
+            styled(thumb, lambda widget: widget.setStyleSheet(
+                f"background: {COLORS['input']}; border-radius: 8px; color: {COLORS['faint']}; font-size: 18pt;"))
             stats = label("", "Small")
             self.live.append((controller, thumb, stats))
             words = column(label(instance.name, "Subheading"),
@@ -831,8 +832,8 @@ class InstancesPage(Page):
                       setting("Compact toolbar", "Make the row of tool buttons under the screen smaller.",
                               compact), divider(),
                       setting("Theme", "Classic is the default. Glitch matches wolklaw.dev: indigo, mint, sharp "
-                                       "corners and a magenta and cyan split that tears now and then. Androidbox "
-                                       "restarts to switch.", look), divider(),
+                                       "corners and a magenta and cyan split that tears now and then. It changes "
+                                       "straight away.", look), divider(),
                       setting("Check for updates", f"You're on Androidbox {VERSION}. Androidbox asks GitHub when it "
                                                    "starts, and every few hours while it runs, whether a newer "
                                                    "version is out.", updates), divider(),
@@ -915,7 +916,7 @@ class ProfilePage(Page):
             words = column(label(name, "Subheading"), label(detail, "Small"), spacing=2)
             if name == current:
                 status = label("Active", "Small")
-                status.setStyleSheet(f"color: {COLORS['green']};")
+                styled(status, lambda widget: widget.setStyleSheet(f"color: {COLORS['green']};"))
             else:
                 status = button("Switch", lambda n=name: host.switch_profile(n), kind="secondary")
             more = menu_button([
@@ -925,7 +926,7 @@ class ProfilePage(Page):
                 (None, None),
                 ("Delete", lambda n=name: host.delete_profile(n)),
             ])
-            rows.append(row(avatar(instances.initials(name), COLORS["accent"] if name == current else COLORS["raised"]),
+            rows.append(row(avatar(instances.initials(name), "accent" if name == current else "raised"),
                             words, None, status, more, spacing=10))
         self.add(card(label(f"Your profiles · {len(rows)}", "Section"), *rows, spacing=12))
         self.add(self.sync_card())
@@ -944,7 +945,7 @@ class ProfilePage(Page):
         if profiles.sync_missing():
             warning = label("That folder isn't available right now, so Androidbox is using this PC's copy until it "
                             "comes back.", "Small", wrap=True)
-            warning.setStyleSheet(f"color: {COLORS['yellow']};")
+            styled(warning, lambda widget: widget.setStyleSheet(f"color: {COLORS['yellow']};"))
             lines.append(warning)
         lines.append(row(button("Change folder", host.choose_sync_folder, kind="secondary"),
                          button("Stop syncing", host.stop_syncing, kind="secondary"), None))
@@ -1350,7 +1351,7 @@ class LibraryPage(Page):
             ])
             actions = [button("Stop", lambda _=False, p=package: host.stop_app(controller, p), kind="secondary")] \
                 if alive else []
-            line = row(avatar(instances.initials(name), COLORS["raised"]), words, None, rate, *actions,
+            line = row(avatar(instances.initials(name), "raised"), words, None, rate, *actions,
                        button("Open", lambda _=False, p=package: self.open_app(controller, p)), more, spacing=10)
             rows.append(line)
             found.append((f"{name} {package}".lower(), line))
@@ -1409,7 +1410,7 @@ class SetupPage(QWidget):
         inner = QVBoxLayout(box)
         inner.setContentsMargins(32, 32, 32, 28)
         inner.setSpacing(12)
-        inner.addWidget(avatar(ICONS["screen"], COLORS["accent"], 64, glyph=True),
+        inner.addWidget(avatar(ICONS["screen"], "accent", 64, glyph=True),
                         alignment=Qt.AlignmentFlag.AlignHCenter)
         self.title = label("Welcome to Androidbox", "Heading")
         self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1438,7 +1439,7 @@ class SetupPage(QWidget):
         self.action.setText("Download and install")
         self.action.setEnabled(False)
         self.detail.setText(error or "Checking download size…")
-        self.detail.setStyleSheet(f"color: {COLORS['red']};" if error else "")
+        styled(self.detail, lambda widget: widget.setStyleSheet(f"color: {COLORS['red']};" if error else ""))
         self.host.run(installer.resolve, self.ready, self.offline)
 
     def ready(self, result):
@@ -1452,7 +1453,7 @@ class SetupPage(QWidget):
 
     def offline(self, error):
         self.detail.setText("Couldn't reach Google. Check your internet connection.")
-        self.detail.setStyleSheet(f"color: {COLORS['red']};")
+        styled(self.detail, lambda widget: widget.setStyleSheet(f"color: {COLORS['red']};"))
         self.action.setText("Try again")
         self.action.setEnabled(True)
         self.action.clicked.disconnect()
@@ -1473,7 +1474,7 @@ class SetupPage(QWidget):
         self.legal.hide()
         self.mirrors.hide()
         self.bar.show()
-        self.detail.setStyleSheet("")
+        styled(self.detail, lambda widget: widget.setStyleSheet(""))
         last = [0.0]
 
         def progress(package, done, total, stage):
@@ -1509,7 +1510,7 @@ class NoAccelerationPage(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        box = card(avatar(ICONS["info"], COLORS["yellow"], 64, glyph=True),
+        box = card(avatar(ICONS["info"], "yellow", 64, glyph=True),
                    label("Turn on virtualization", "Heading"),
                    label("Android needs Windows Hypervisor Platform. Turn it on in Windows Features, restart your "
                          "PC, then open Androidbox again.", "Muted", wrap=True),

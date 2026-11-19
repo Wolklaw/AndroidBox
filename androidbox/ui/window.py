@@ -25,9 +25,9 @@ from . import fun
 from .palette import Palette
 from .popout import PopoutWindow
 from . import theme
-from .theme import COLORS, ICONS
+from .theme import COLORS, ICONS, Fonts, stylesheet
 from .widgets import (STATE_WORDS, STATUS_COLORS, InstanceButton, Modal, NavButton, ProfileButton, TabButton, Toast,
-                      ToolButton, button, column, confirm, divider, glyph_css, label, row, style_title_bar)
+                      ToolButton, button, column, confirm, divider, glyph_css, label, retheme, row, style_title_bar)
 
 PAGES = {
     "screen": ("screen", "Screen"),
@@ -106,8 +106,10 @@ class MainWindow(QMainWindow, ScreenActions):
         main_layout.addWidget(self.stack, 1)
         root.addWidget(main, 1)
         self.toaster = Toast(central)
-        if theme.glitched():
-            self.add_fault(central, main)
+        self.fault = None
+        self.fault_parts = (central, main)
+        self.stack.currentChanged.connect(lambda _: self.fault and self.fault.update())
+        self.sync_fault()
 
         self.screen = ScreenPage(self)
         self.pages = {
@@ -143,6 +145,15 @@ class MainWindow(QMainWindow, ScreenActions):
             self.show_onboarding(self.setup)
             self.setup.begin()
 
+    def sync_fault(self):
+        """The Glitch theme's scanline overlay exists only while that theme is on."""
+        if theme.glitched() and self.fault is None:
+            self.add_fault(*self.fault_parts)
+        elif not theme.glitched() and self.fault is not None:
+            self.fault.hide()
+            self.fault.deleteLater()
+            self.fault = None
+
     def add_fault(self, central, main):
         from .glitch import Fault
 
@@ -157,7 +168,6 @@ class MainWindow(QMainWindow, ScreenActions):
             return areas
 
         self.fault = Fault(central, regions)
-        self.stack.currentChanged.connect(lambda _: self.fault.update())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -495,25 +505,35 @@ class MainWindow(QMainWindow, ScreenActions):
             popout.screen.phone.update()
 
     def set_theme(self, name, box=None):
-        if name == self.prefs["theme"] or self.closing or getattr(self, "theme_asking", False):
+        if name == self.prefs["theme"] or self.closing:
             return
-        self.theme_asking = True
+        self.set_pref("theme", name)
+        # Later, so the Settings page isn't rebuilt from inside the drop-down that asked for this
+        QTimer.singleShot(0, self.apply_theme)
 
-        def switch():
-            # Saved only once the restart is agreed to, so cancelling never leaves a theme that isn't showing
-            self.set_pref("theme", name)
-            self.restart()
-
-        def settled():
-            self.theme_asking = False
-            if box is not None and self.prefs["theme"] != name:
-                box.blockSignals(True)
-                box.setCurrentIndex(max(0, box.findData(self.prefs["theme"])))
-                box.blockSignals(False)
-
-        confirm(self.dialog_parent(), "Restart to switch theme?",
-                "Androidbox needs to restart to change its look. Running Android instances are shut down "
-                "cleanly first.", "Restart now", switch).closed.connect(settled)
+    def apply_theme(self):
+        """Switch every window to the saved theme without restarting. Running instances are not touched."""
+        if self.closing:
+            return
+        theme.use(self.prefs["theme"])
+        Fonts.load()
+        QApplication.instance().setStyleSheet(stylesheet())
+        retheme()
+        self.sync_fault()
+        for window in (self, *self.popouts.values()):
+            style_title_bar(window)
+        # Pages and the sidebar card write colours into their text when they refresh, so refresh the one showing
+        if self.stack.currentWidget() in self.pages.values():
+            self.show_page(self.page)
+        else:
+            self.update_power()
+        for controller in self.controllers.values():
+            item = self.instance_buttons.get(controller.instance.id)
+            if item:
+                item.set_state(controller.state)
+        self.screen.phone.update()
+        for popout in self.popouts.values():
+            popout.screen.phone.update()
 
     def update_mirrors(self):
         active = self.active()

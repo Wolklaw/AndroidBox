@@ -2,7 +2,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QMenu, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
 from .theme import COLORS, ICONS
-from .widgets import ToolButton
+from .widgets import ToolButton, styled
 
 ALWAYS_ON = {"fullscreen", "popout", "game", "more", "inspector"}
 # The rest of the tools, in the More menu: label, host method, the state it shows (if it is a switch), and
@@ -54,7 +54,7 @@ class ToolRail(QWidget):
             if number:
                 line = QFrame()
                 line.setFixedSize(*((1, 22) if horizontal else (24, 1)))
-                line.setStyleSheet(f"background: {COLORS['line']};")
+                styled(line, lambda widget: widget.setStyleSheet(f"background: {COLORS['line']};"))
                 layout.addWidget(line, alignment=middle)
             for name, tooltip, action, *checkable in group:
                 tool = ToolButton(ICONS[name], tooltip, action, checkable=bool(checkable))

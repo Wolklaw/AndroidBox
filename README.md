@@ -201,7 +201,7 @@ for yourself, one for streaming, one for the family PC, and switch from the menu
 - **Glitch theme**: Settings has a **Theme** choice. Classic stays the default. Glitch matches
   [wolklaw.dev](https://wolklaw.dev): deep indigo and mint, sharp corners, and a magenta and cyan split
   that tears for a third of a second every few seconds. The scanlines stay off the Android screen, and
-  nothing moves if Windows' animation effects are off. Androidbox restarts to switch.
+  nothing moves if Windows' animation effects are off. The theme changes straight away, with no restart.
 
 ### Several Androids at once
 

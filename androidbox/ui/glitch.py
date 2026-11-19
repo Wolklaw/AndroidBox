@@ -40,6 +40,9 @@ class SplitLabel(QLabel):
         self.update()
 
     def paintEvent(self, event):
+        if not theme.glitched():
+            super().paintEvent(event)
+            return
         painter = QPainter(self)
         painter.setFont(self.font())
         rect = self.contentsRect()

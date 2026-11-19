@@ -1,9 +1,10 @@
 import ctypes
+import weakref
 
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QAbstractButton, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton,
-                               QSizePolicy, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel,
+                               QPushButton, QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
 from . import theme
 from .theme import COLORS, ICONS, Fonts
@@ -19,6 +20,32 @@ def refresh_colors():
     # Run once the theme is chosen: the other modules hold this same dictionary
     STATUS_COLORS.clear()
     STATUS_COLORS.update(status_colors())
+
+
+# Widgets whose look is an inline stylesheet, with the function that writes it. Held weakly, so a closed page
+# doesn't linger, and the function must not capture the widget (it is handed it instead)
+STYLED = weakref.WeakKeyDictionary()
+
+
+def styled(widget, apply):
+    """Run apply(widget) now, and again whenever the theme changes. Read colours from COLORS inside it."""
+    STYLED[widget] = apply
+    apply(widget)
+    return widget
+
+
+def retheme():
+    """Bring every widget that is already on screen into the current theme."""
+    refresh_colors()
+    for widget, apply in list(STYLED.items()):
+        try:
+            apply(widget)
+        except RuntimeError:
+            STYLED.pop(widget, None)
+    for widget in QApplication.allWidgets():
+        if hasattr(widget, "retheme"):
+            widget.retheme()
+        widget.update()
 
 
 def style_title_bar(window):
@@ -55,6 +82,7 @@ def glyph_css(size):
 
 
 def avatar(text, color, size=40, glyph=False):
+    """color is the name of a theme colour, such as "accent", so the badge can follow a theme change."""
     badge = QLabel(text)
     badge.setFixedSize(size, size)
     badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -64,19 +92,24 @@ def avatar(text, color, size=40, glyph=False):
 
 
 def recolor(badge, color, ink=None):
-    size = badge.width()
-    font = glyph_css(size // 2) if badge.property("glyph") else \
-        f'font-family: "{Fonts.strong}"; font-size: {size * 2 // 5}px;'
-    ink = ink or (COLORS["on_accent"] if color == COLORS["accent"] else COLORS["bright"])
-    radius = min(3, size // 4) if theme.glitched() else size // 4
-    badge.setStyleSheet(f"background: {color}; color: {ink}; border-radius: {radius}px; {font}")
+    def apply(badge):
+        size = badge.width()
+        font = glyph_css(size // 2) if badge.property("glyph") else \
+            f'font-family: "{Fonts.strong}"; font-size: {size * 2 // 5}px;'
+        ink_color = COLORS[ink or ("on_accent" if color == "accent" else "bright")]
+        radius = min(3, size // 4) if theme.glitched() else size // 4
+        badge.setStyleSheet(f"background: {COLORS[color]}; color: {ink_color}; border-radius: {radius}px; {font}")
+
+    styled(badge, apply)
 
 
 SPLIT_NAMES = ("Brand", "Heading", "HeaderTitle")
 
 
 def label(text="", name=None, wrap=False):
-    if theme.glitched() and name in SPLIT_NAMES:
+    # These are always split labels, which paint as plain labels unless the Glitch theme is on, so the theme can
+    # change while they are showing
+    if name in SPLIT_NAMES:
         from .glitch import SplitLabel
         widget = SplitLabel(text)
     else:
@@ -195,7 +228,11 @@ class TabButton(SidebarButton):
         super().__init__(text)
         self.setFixedHeight(36)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setFixedWidth(text_width(text, 14) + 36)
+        self.retheme()
+
+    def retheme(self):
+        # The two themes use different fonts, so the tab is measured again
+        self.setFixedWidth(text_width(self.text(), 14) + 36)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -324,8 +361,11 @@ class ProfileButton(QAbstractButton):
     def show_profile(self, name, tag):
         self.setText(name)
         self.tag = tag
-        self.setFixedWidth(text_width(name) + 78)
+        self.retheme()
         self.update()
+
+    def retheme(self):
+        self.setFixedWidth(text_width(self.text()) + 78)
 
     def enterEvent(self, event):
         self.hovered = True
@@ -405,11 +445,14 @@ class ToolButton(QToolButton):
             self.clicked.connect(on_click)
 
     def set_compact(self, compact):
-        size, glyph_size = (32, 15) if compact else (40, 17)
+        size, self.glyph_size = (32, 15) if compact else (40, 17)
         self.setFixedSize(size, size)
+        self.retheme()
+
+    def retheme(self):
         self.setStyleSheet(f"""
             QToolButton {{ border: none; border-radius: 8px; color: {COLORS["muted"]}; background: transparent;
-                           {glyph_css(glyph_size)} }}
+                           {glyph_css(self.glyph_size)} }}
             QToolButton:hover {{ background: {COLORS["hover"]}; color: {COLORS["bright"]}; }}
             QToolButton:checked {{ background: {COLORS["selected"]}; color: {COLORS["accent"]}; }}
             QToolButton:disabled {{ color: {COLORS["dim"]}; }}
@@ -442,8 +485,8 @@ class Toast(QLabel):
 
     def show_message(self, text, tone="text", seconds=3.5):
         self.setText(text)
-        color = {"good": COLORS["green"], "bad": COLORS["red"]}.get(tone)
-        self.setStyleSheet(f"border-left: 3px solid {color};" if color else "")
+        key = {"good": "green", "bad": "red"}.get(tone)
+        styled(self, lambda toast: toast.setStyleSheet(f"border-left: 3px solid {COLORS[key]};" if key else ""))
         self.adjustSize()
         self.place()
         self.raise_()
