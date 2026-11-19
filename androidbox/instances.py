@@ -140,6 +140,12 @@ def proxy_label(text):
     """The proxy as it can safely be shared, with any login hidden"""
     proxy = parse_proxy(text)
     if not proxy:
+        # Text that isn't a proxy can still hold a login, and it is exactly what a bug report needs to show
+        text = (text or "").strip()
+        if "@" in text:
+            return re.sub(r"^((?:[A-Za-z][A-Za-z0-9+.-]*://)?).*@", r"\1***@", text)
+        if text.count(":") >= 3:
+            return "(not a proxy address; hidden because it may hold a login)"
         return text
     kind, host, port, user, _ = proxy
     return f"{'socks5' if kind == 'socks' else 'http'}://{'***@' if user else ''}{host}:{port}"

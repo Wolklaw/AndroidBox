@@ -7,14 +7,19 @@ import base64
 import socket
 import struct
 import threading
+import time
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 CONNECT_TIMEOUT = 20
 HEAD_LIMIT = 1 << 16
+SOCKS_REPLIES = {1: "general failure", 2: "not allowed by the proxy's rules", 3: "network unreachable",
+                 4: "host unreachable", 5: "connection refused", 6: "timed out", 7: "command not supported",
+                 8: "address type not supported"}
 
 
-class SocksError(OSError):
-    pass
+class ProxyError(OSError):
+    """The proxy answered, but not in a way that gets traffic through"""
 
 
 def recv_exact(sock, count):
@@ -22,42 +27,71 @@ def recv_exact(sock, count):
     while len(data) < count:
         chunk = sock.recv(count - len(data))
         if not chunk:
-            raise SocksError("the proxy closed the connection")
+            raise ProxyError("the proxy closed the connection")
         data += chunk
     return data
+
+
+def socks5_handshake(sock, target_host, target_port, user="", password=""):
+    """Asks the SOCKS5 proxy on an open socket to tunnel to target_host:target_port"""
+    methods = b"\x00\x02" if user else b"\x00"
+    sock.sendall(b"\x05" + bytes([len(methods)]) + methods)
+    version, method = recv_exact(sock, 2)
+    if version != 5:
+        raise ProxyError("that isn't a SOCKS5 proxy (it didn't answer like one)")
+    if method == 0xFF:
+        raise ProxyError("the proxy refused every login method")
+    if method == 2:
+        name, secret = user.encode(), password.encode()
+        if len(name) > 255 or len(secret) > 255:
+            raise ProxyError("the proxy login is too long")
+        sock.sendall(b"\x01" + bytes([len(name)]) + name + bytes([len(secret)]) + secret)
+        if recv_exact(sock, 2)[1] != 0:
+            raise ProxyError("the proxy rejected the username or password")
+    elif method != 0:
+        raise ProxyError("the proxy wants a login method Androidbox doesn't support")
+    sock.sendall(b"\x05\x01\x00" + address(target_host) + struct.pack(">H", target_port))
+    head = recv_exact(sock, 4)
+    if head[1] != 0:
+        raise ProxyError(f"the proxy couldn't reach {target_host}:{target_port} ({SOCKS_REPLIES.get(head[1], 'error')}, "
+                         f"code {head[1]})")
+    skip = {1: 4, 4: 16}.get(head[3])
+    if skip is None:
+        skip = recv_exact(sock, 1)[0]
+    recv_exact(sock, skip + 2)
 
 
 def socks5_connect(host, port, target_host, target_port, user="", password=""):
     """An open socket to target_host:target_port tunnelled through the SOCKS5 proxy at host:port"""
     sock = socket.create_connection((host, port), timeout=CONNECT_TIMEOUT)
     try:
-        methods = b"\x00\x02" if user else b"\x00"
-        sock.sendall(b"\x05" + bytes([len(methods)]) + methods)
-        version, method = recv_exact(sock, 2)
-        if version != 5 or method == 0xFF:
-            raise SocksError("the proxy refused every login method")
-        if method == 2:
-            name, secret = user.encode(), password.encode()
-            if len(name) > 255 or len(secret) > 255:
-                raise SocksError("the proxy login is too long")
-            sock.sendall(b"\x01" + bytes([len(name)]) + name + bytes([len(secret)]) + secret)
-            if recv_exact(sock, 2)[1] != 0:
-                raise SocksError("the proxy rejected the username or password")
-        elif method != 0:
-            raise SocksError("the proxy wants a login method Androidbox doesn't support")
-        sock.sendall(b"\x05\x01\x00" + address(target_host) + struct.pack(">H", target_port))
-        head = recv_exact(sock, 4)
-        if head[1] != 0:
-            raise SocksError(f"the proxy couldn't reach {target_host}:{target_port} (code {head[1]})")
-        skip = {1: 4, 4: 16}.get(head[3])
-        if skip is None:
-            skip = recv_exact(sock, 1)[0]
-        recv_exact(sock, skip + 2)
+        socks5_handshake(sock, target_host, target_port, user, password)
         sock.settimeout(None)
         return sock
     except BaseException:
         sock.close()
         raise
+
+
+def http_connect(sock, target_host, target_port, user="", password=""):
+    """Asks the HTTP proxy on an open socket to tunnel to target_host:target_port"""
+    login = ""
+    if user:
+        token = base64.b64encode(f"{user}:{password}".encode()).decode()
+        login = f"Proxy-Authorization: Basic {token}\r\n"
+    sock.sendall(f"CONNECT {target_host}:{target_port} HTTP/1.1\r\nHost: {target_host}:{target_port}\r\n{login}\r\n"
+                 .encode())
+    reply = sock.recv(4096).decode("latin-1")
+    status = reply.split(" ", 2)[1] if reply.startswith("HTTP/") and " " in reply else ""
+    if status == "200":
+        return
+    if status == "407":
+        raise ProxyError("the proxy rejected the username or password")
+    if reply[:1] == "\x05":
+        raise ProxyError("that is a SOCKS5 proxy: enter it as socks5://user:pass@host:port")
+    if not reply:
+        raise ProxyError("the proxy closed the connection")
+    raise ProxyError(f"the proxy answered with an error ({status or 'not an HTTP reply'})")
 
 
 def speaks_socks5(host, port, timeout=5):
@@ -73,32 +107,76 @@ def speaks_socks5(host, port, timeout=5):
         return False
 
 
-def check(kind, host, port, user="", password="", timeout=10):
-    """(ok, message): can traffic get out through this proxy? Opens a tunnel to a well-known HTTPS host the way
-    Android would, so a wrong login, a dead address and a wrong kind of proxy each get their own message."""
+@dataclass
+class Step:
+    key: str
+    ok: bool
+    name: str
+    detail: str
+
+
+def describe(error, host, port, timeout):
+    """One plain sentence for why a connection to host:port failed"""
+    if isinstance(error, socket.gaierror):
+        return f"{host} can't be looked up ({error.strerror or error})"
+    if isinstance(error, TimeoutError):
+        return f"no answer from {host}:{port} after {timeout} seconds"
+    if isinstance(error, ConnectionRefusedError):
+        return f"{host}:{port} refused the connection, so nothing is listening there"
+    return str(error)
+
+
+def reach(host, port, what, timeout=10):
+    """([steps], socket or None): looks host up, then connects to it, one step for each so a failure says which"""
+    steps = []
     try:
-        if kind == "socks":
-            socks5_connect(host, port, "example.com", 443, user, password).close()
-            return True, "The proxy works (SOCKS5)"
-        with socket.create_connection((host, port), timeout=timeout) as sock:
-            sock.settimeout(timeout)
-            login = ""
-            if user:
-                token = base64.b64encode(f"{user}:{password}".encode()).decode()
-                login = f"Proxy-Authorization: Basic {token}\r\n"
-            request = f"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n{login}\r\n"
-            sock.sendall(request.encode())
-            reply = sock.recv(4096).decode("latin-1")
-        status = reply.split(" ", 2)[1] if reply.startswith("HTTP/") and " " in reply else ""
-        if status == "200":
-            return True, "The proxy works (HTTP)"
-        if status == "407":
-            return False, "The proxy rejected the username or password"
-        if reply[:1] == "\x05":
-            return False, "That is a SOCKS5 proxy: enter it as socks5://user:pass@host:port"
-        return False, f"The proxy answered with an error ({status or 'not an HTTP reply'})"
+        found = sorted({info[4][0] for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)})
     except OSError as problem:
-        return False, f"Couldn't use the proxy: {problem}"
+        return [Step("lookup", False, f"Look up {what}", describe(problem, host, port, timeout))], None
+    steps.append(Step("lookup", True, f"Look up {what}", ", ".join(found[:4]) or host))
+    started = time.monotonic()
+    try:
+        sock = socket.create_connection((host, port), timeout=timeout)
+    except OSError as problem:
+        steps.append(Step("connect", False, f"Connect to {what}", describe(problem, host, port, timeout)))
+        return steps, None
+    steps.append(Step("connect", True, f"Connect to {what}", f"{(time.monotonic() - started) * 1000:.0f} ms"))
+    return steps, sock
+
+
+def probe(kind, host, port, user="", password="", target=("example.com", 443), timeout=10):
+    """The steps Android's traffic takes through a proxy, up to the first that fails: finding the proxy, reaching
+    it, and asking it to open a connection to a well-known HTTPS host. A wrong login, a dead address and a wrong
+    kind of proxy each fail at a different step"""
+    steps, sock = reach(host, port, "the proxy", timeout)
+    if not sock:
+        return steps
+    name = f"Ask the proxy for {target[0]}:{target[1]}"
+    with sock:
+        sock.settimeout(timeout)
+        try:
+            if kind == "socks":
+                socks5_handshake(sock, *target, user, password)
+            else:
+                http_connect(sock, *target, user, password)
+        except OSError as problem:
+            key = "target" if "couldn't reach" in str(problem) else "proxy"
+            detail = describe(problem, host, port, timeout) if isinstance(problem, TimeoutError) else str(problem)
+            steps.append(Step(key, False, name, detail))
+        else:
+            steps.append(Step("target", True, name, "connected"))
+    return steps
+
+
+def check(kind, host, port, user="", password="", timeout=10):
+    """(ok, message): can traffic get out through this proxy? Each failure gets its own message"""
+    steps = probe(kind, host, port, user, password, timeout=timeout)
+    failed = next((step for step in steps if not step.ok), None)
+    if not failed:
+        return True, f"The proxy works ({'SOCKS5' if kind == 'socks' else 'HTTP'})"
+    if failed.key in ("lookup", "connect"):
+        return False, f"Couldn't use the proxy: {failed.detail}"
+    return False, failed.detail[:1].upper() + failed.detail[1:]
 
 
 def address(host):

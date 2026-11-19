@@ -3,6 +3,8 @@
 What is planned for Androidbox, roughly in order. Nothing here is a promise or a date.
 
 ## Done recently
+- Internet trouble in Android: the diagnostics export checks the proxy step by step, the PC's own connection,
+  and DNS and VPN inside Android
 - Macro smart steps: wait until a marked part of the screen looks the same or until the screen stops changing,
   If ... End if, Repeat ... until, and tapping a marked picture wherever it shows up, each with a limit and
   editable settings
@@ -20,7 +22,6 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 - Typing non-Latin text (Persian, Arabic, CJK, emoji) for Claude and the app. Android's `input text` cannot do it,
   so this needs the emulator's clipboard channel or a small helper app on the device
 - Apps page: select several apps and act on them together, sort by last used, show each app's memory use
-- Internet trouble in Android (DNS, proxy, VPN): a check in the diagnostics export
 
 ## Later
 - Clone an instance, and a side-by-side view of two instances

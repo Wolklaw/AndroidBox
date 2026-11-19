@@ -908,3 +908,112 @@ def test_themes_share_one_palette_dictionary():
         theme.use("classic")
     assert theme.THEMES.keys() == {value for _, value in theme.NAMES}
     assert all(set(theme.CLASSIC) <= set(palette) for palette in theme.THEMES.values())
+
+
+def _serve_socks5(accept_login=True):
+    """A one-connection SOCKS5 proxy that lets every request through"""
+    import socket
+    import threading
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+
+    def run():
+        client, _ = server.accept()
+        client.recv(16)
+        client.sendall(b"\x05\x00")
+        client.recv(64)
+        client.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+        client.close()
+        server.close()
+    threading.Thread(target=run, daemon=True).start()
+    return server.getsockname()[1]
+
+
+def _closed_port():
+    import socket
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+def test_probe_names_the_step_that_failed():
+    from androidbox.socks_relay import probe
+    keys = lambda steps: [(step.key, step.ok) for step in steps]
+    assert keys(probe("socks", "127.0.0.1", _serve_socks5())) == [("lookup", True), ("connect", True),
+                                                                  ("target", True)]
+    refused = probe("socks", "127.0.0.1", _closed_port(), timeout=3)
+    assert keys(refused) == [("lookup", True), ("connect", False)] and "refused" in refused[-1].detail
+    missing = probe("http", "no-such-host.invalid", 8080, timeout=3)
+    assert keys(missing) == [("lookup", False)] and "can't be looked up" in missing[0].detail
+    wrong_kind = probe("socks", "127.0.0.1", _serve_once(b"HTTP/1.1 400 Bad Request\r\n\r\n"))
+    assert keys(wrong_kind)[-1] == ("proxy", False) and "isn't a SOCKS5 proxy" in wrong_kind[-1].detail
+    blocked = probe("http", "127.0.0.1", _serve_once(b"HTTP/1.1 403 Forbidden\r\n\r\n"))
+    assert keys(blocked)[-1] == ("proxy", False) and "403" in blocked[-1].detail
+
+
+def test_ping_verdict_and_vpn_interfaces():
+    from androidbox.diagnostics import ping_verdict, vpn_interfaces
+    assert ping_verdict("ping: unknown host example.com") == "dns"
+    assert ping_verdict("64 bytes from 1.2.3.4: icmp_seq=1\n1 packets transmitted, 1 received") == "found"
+    assert ping_verdict("1 packets transmitted, 0 received, 100% packet loss") == "silent"
+    assert vpn_interfaces("dummy0\neth0\nlo\ntun0\n") == ["tun0"]
+    assert vpn_interfaces("eth0\nlo\n") == []
+
+
+def test_proxy_label_hides_a_login_even_in_text_that_isnt_a_proxy():
+    from androidbox.instances import proxy_label
+    assert "secret" not in proxy_label("ftp://user:secret@1.2.3.4:21")
+    assert proxy_label("ftp://user:secret@1.2.3.4:21") == "ftp://***@1.2.3.4:21"
+    assert "secret" not in proxy_label("1.2.3.4:abc:user:secret")
+    assert proxy_label("nonsense") == "nonsense"
+    assert proxy_label("") == ""
+
+
+def _no_direct_internet(monkeypatch):
+    """Makes example.com unreachable from the PC, and leaves every other address to the real thing"""
+    from androidbox import socks_relay
+    real = socks_relay.reach
+
+    def reach(host, port, what, timeout=10):
+        if host == "example.com":
+            return [socks_relay.Step("lookup", True, f"Look up {what}", "1.2.3.4"),
+                    socks_relay.Step("connect", False, f"Connect to {what}", "no answer")], None
+        return real(host, port, what, timeout)
+    monkeypatch.setattr(socks_relay, "reach", reach)
+
+
+def test_network_report_explains_a_proxy_that_cant_be_reached(monkeypatch):
+    from androidbox import diagnostics, socks_relay
+    _no_direct_internet(monkeypatch)
+    instance = instances.Instance(id="netcheck", name="Net", slot=0,
+                                  proxy=f"socks5://user:secret@127.0.0.1:{_closed_port()}")
+    answers = {"settings": (0, "null\n"), "ls": (0, "eth0\nlo\ntun0\n"), "ping": (1, "ping: unknown host example.com")}
+    text, problems = diagnostics.network_report(instance, lambda *command, timeout=30: answers[command[1]])
+    assert "secret" not in text and "socks5://***@127.0.0.1" in text
+    assert [title for title, _, _ in problems] == ["The proxy doesn't work from this PC",
+                                                   "Android can't look up web addresses"]
+    assert "refused" in problems[0][2][0] and "VPN or tunnel" in text and "tun0" in text
+    quiet, none = diagnostics.network_report(instances.Instance(id="netcheck", name="Net", slot=0))
+    assert "Proxy setting: none" in quiet and "Android wasn't running" in quiet
+    assert [title for title, _, _ in none] == ["This PC can't reach the Internet"]
+
+
+def test_collect_adds_the_network_check_to_the_bundle(monkeypatch, tmp_path):
+    import types
+    import zipfile
+    from androidbox import diagnostics, socks_relay
+    _no_direct_internet(monkeypatch)
+    instance = instances.Instance(id="netcheck", name="Net", slot=0, proxy="user:secret@no-such-host.invalid:8080")
+    emulator = types.SimpleNamespace(instance=instance, running=lambda: False)
+    target = tmp_path / "diagnostics.zip"
+    problems = diagnostics.collect(emulator, target)
+    with zipfile.ZipFile(target) as bundle:
+        names = bundle.namelist()
+        everything = "".join(bundle.read(name).decode("utf-8", "replace") for name in names)
+        summary = bundle.read("summary.txt").decode()
+    assert "network.txt" in names and problems >= 1
+    assert "== Network: The proxy doesn't work from this PC" in summary
+    assert "secret" not in everything

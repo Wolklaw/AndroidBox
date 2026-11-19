@@ -249,6 +249,11 @@ recognised, and Androidbox runs a small relay on your PC to pass its traffic alo
 connects through the proxy and tells you what's wrong if it can't: an address that can't be found, a refused
 login, or the wrong kind of proxy. It applies the next time Android starts. SOCKS4 and UDP aren't supported.
 
+If an app still can't get online, save **Diagnostics**. Its `network.txt` walks through each step from your PC
+to the proxy (finding the address, connecting, the login, opening a connection through it), checks that your PC
+can reach the Internet without the proxy, and, while Android is running, whether Android can look up names and
+whether a VPN is active inside it. `summary.txt` names the step that failed. The proxy login is left out.
+
 ### Updates
 
 Androidbox checks GitHub for a newer release when it starts and every few hours while it runs. When one
@@ -322,8 +327,8 @@ Androidbox stops registering its own copy.
 - Rotate, shake, volume and GPS location
 - Full screen, an FPS counter that also shows how much processor and memory the emulator uses, and eco
   mode for idle games
-- **Diagnostics**: one button saves Android's log, an instance's settings and a plain summary of anything
-  that looks wrong, such as an ARM translator crash, to a zip you can attach to a bug report
+- **Diagnostics**: one button saves Android's log, an instance's settings, a network check and a plain
+  summary of anything that looks wrong, such as an ARM translator crash, to a zip you can attach to a bug report
 - Move everything Androidbox stores to another drive when your C: drive runs short
 - Automatic updates that download in the background, with a check for new releases that you can turn off
 
