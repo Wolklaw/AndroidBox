@@ -1355,16 +1355,24 @@ class LibraryPage(Page):
             rows.append(line)
             found.append((f"{name} {package}".lower(), line))
 
-        def narrow(text):
-            self.query = text
-            words = text.lower().split()
-            for haystack, line in found:
-                line.setVisible(all(word in haystack for word in words))
-
-        search.textChanged.connect(narrow)
-        narrow(self.query)
         if rows:
-            self.add(card(label(f"Installed · {len(rows)}", "Section"), *rows, spacing=12))
+            heading = label("", "Section")
+            nothing = label("No apps match that search.", "Muted")
+
+            def narrow(text):
+                self.query = text
+                words = text.lower().split()
+                shown = 0
+                for haystack, line in found:
+                    match = all(word in haystack for word in words)
+                    line.setVisible(match)
+                    shown += match
+                heading.setText(f"Installed · {len(rows)}" if shown == len(rows) else f"Installed · {shown} of {len(rows)}")
+                nothing.setVisible(not shown)
+
+            search.textChanged.connect(narrow)
+            narrow(self.query)
+            self.add(card(heading, nothing, *rows, spacing=12))
         else:
             self.add(card(label("Nothing installed yet. Get apps from Google Play, or drop an APK file on the screen.",
                                 "Muted", wrap=True)))

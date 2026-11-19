@@ -1,6 +1,6 @@
 import ctypes
 
-from PySide6.QtCore import QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
@@ -427,15 +427,25 @@ class Toast(QLabel):
         self.fade.valueChanged.connect(self.opacity.setOpacity)
         self.fade.finished.connect(lambda: self.opacity.opacity() == 0 and self.hide())
         self.timer = QTimer(self, singleShot=True, timeout=self.fade_out)
+        parent.installEventFilter(self)
         self.hide()
+
+    def eventFilter(self, watched, event):
+        # A toast shown at startup is placed before the window has its real size, so follow the parent
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize:
+            self.place()
+        return False
+
+    def place(self):
+        parent = self.parentWidget()
+        self.move((parent.width() - self.width()) // 2, parent.height() - self.height() - 24)
 
     def show_message(self, text, tone="text", seconds=3.5):
         self.setText(text)
         color = {"good": COLORS["green"], "bad": COLORS["red"]}.get(tone)
         self.setStyleSheet(f"border-left: 3px solid {color};" if color else "")
         self.adjustSize()
-        parent = self.parentWidget()
-        self.move((parent.width() - self.width()) // 2, parent.height() - self.height() - 24)
+        self.place()
         self.raise_()
         self.show()
         self.fade.stop()

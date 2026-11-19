@@ -160,7 +160,39 @@ class AppsPage(unittest.TestCase):
         self.assertEqual(packages(), ["org.test.zed", "com.supercell.clashofclans"])
         page.findChild(QLineEdit).setText("clash")
         self.assertEqual(packages(), ["com.supercell.clashofclans"])
+
+        def texts():
+            return [label.text() for label in page.findChildren(QLabel) if label.isVisible()]
+
+        self.assertIn("Installed · 1 of 2", texts())
+        self.assertNotIn("No apps match that search.", texts())
+        page.findChild(QLineEdit).setText("nothing like this")
+        self.assertIn("No apps match that search.", texts())
+        page.findChild(QLineEdit).setText("")
+        self.assertIn("Installed · 2", texts())
+        self.assertNotIn("No apps match that search.", texts())
         app.processEvents()
+
+
+class ToastPlacement(unittest.TestCase):
+    def test_toast_stays_at_the_bottom_centre_when_the_window_resizes(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        try:
+            from PySide6.QtWidgets import QApplication, QWidget
+            from androidbox.ui.widgets import Toast
+        except ImportError:
+            self.skipTest("Qt isn't installed")
+        app = QApplication.instance() or QApplication([])
+        parent = QWidget()
+        parent.resize(640, 480)
+        toast = Toast(parent)
+        # Shown at start-up, before the window has its real size
+        toast.show_message("Androidbox updated", "good")
+        parent.resize(1263, 837)
+        parent.show()
+        app.processEvents()
+        self.assertAlmostEqual(toast.geometry().center().x(), 1263 // 2, delta=2)
+        self.assertEqual(toast.geometry().bottom(), 837 - 24 - 1)
 
 
 def solid(colour, width=40, height=80):
