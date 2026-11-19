@@ -45,3 +45,28 @@ jobs:
 
       - name: Remove it again
         run: bash packaging/linux/install.sh --user --uninstall
+
+  # The SparkOS base (Bazzite on Fedora), whose newest Python is too new for Qt's packages: this is the
+  # install the SparkOS image build runs, as root, with --deps
+  fedora:
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install it the way the SparkOS image does
+        run: bash packaging/linux/install.sh --deps
+
+      - name: Start the installed app
+        run: |
+          export ANDROIDBOX_HOME="$RUNNER_TEMP/androidbox-smoke"
+          export QT_QPA_PLATFORM=offscreen
+          androidbox --version
+          /usr/bin/androidbox &
+          app=$!
+          sleep 12
+          if ! kill -0 "$app" 2>/dev/null; then echo "The app quit on start"; exit 1; fi
+          if [ -f "$ANDROIDBOX_HOME/data/crash.log" ]; then cat "$ANDROIDBOX_HOME/data/crash.log"; exit 1; fi
+          kill "$app"
+          # The Python that got used, for the record
+          /usr/lib/androidbox/venv/bin/python --version
