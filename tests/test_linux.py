@@ -69,8 +69,9 @@ class Processes(unittest.TestCase):
         with mock.patch.object(os, "kill", lambda pid, sig: None):
             self.assertTrue(native.process_alive(42))
 
-    def test_the_real_python_process_is_alive_and_a_made_up_one_is_not(self):
-        with mock.patch.object(native, "WINDOWS", native.WINDOWS):
+    def test_the_real_python_process_is_alive(self):
+        # Asked the way this system really does it: on Windows os.kill(pid, 0) would send this process a Ctrl+C
+        with mock.patch.object(native, "WINDOWS", sys.platform == "win32"),                 mock.patch.object(native, "PROC", Path("/proc")):
             self.assertTrue(native.process_alive(os.getpid()))
 
 

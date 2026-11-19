@@ -121,7 +121,7 @@ class Paths(unittest.TestCase):
         (local / "DroidCore" / "marker.txt").write_text("kept")
         code = "from androidbox import paths; print(paths.MIGRATED, paths.DEFAULT_HOME.name)"
         result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True,
-                                env={**os.environ, "LOCALAPPDATA": str(local)})
+                                env={**os.environ, "LOCALAPPDATA": str(local), "XDG_DATA_HOME": str(local)})
         self.assertEqual(result.stdout.split(), ["True", "Androidbox"], result.stderr)
         self.assertEqual((local / "Androidbox" / "marker.txt").read_text(), "kept")
 
