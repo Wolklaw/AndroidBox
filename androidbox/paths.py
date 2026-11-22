@@ -54,6 +54,8 @@ LEGACY_MACROS = DATA / "macros"
 INSTANCES = DATA / "instances.json"
 SETTINGS = DATA / "settings.json"
 CRASH_LOG = DATA / "crash.log"
+# Screen frames shared with the emulator. Emulator 37.3 refuses shared memory outside its own temp folder
+FRAMES = Path(tempfile.gettempdir()) / "AndroidEmulator"
 
 EMULATOR = SDK / "emulator" / exe("emulator")
 LEGACY_EMULATOR = SDK / "emulator-legacy" / exe("emulator")

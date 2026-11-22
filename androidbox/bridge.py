@@ -1,8 +1,6 @@
 import contextlib
 import mmap
 import queue
-import tempfile
-from pathlib import Path
 import threading
 import time
 
@@ -15,6 +13,8 @@ from .proto import emulator_controller_pb2_grpc as rpc
 KEYDOWN = pb.KeyboardEvent.keydown
 KEYUP = pb.KeyboardEvent.keyup
 KEYPRESS = pb.KeyboardEvent.keypress
+# Seconds to wait for the first shared-memory frame before falling back to plain images
+SHARED_FRAME_WAIT = 5
 
 
 def booted(port, token):
@@ -33,8 +33,10 @@ class Bridge:
                                              options=[("grpc.max_receive_message_length", 256 << 20)])
         self.stub = rpc.EmulatorControllerStub(self.channel)
         self.metadata = [("authorization", f"Bearer {token}")]
-        # Recent emulators only accept file-backed frames inside their temporary directories.
-        self.frames = Path(tempfile.gettempdir()) / "AndroidEmulator" / f"androidbox-{frames.name}" if frames else None
+        self.frames = frames
+        # Set once the emulator has refused a shared-memory screen, so later streams go straight to plain images
+        self.copy_frames = False
+        self.fallback = threading.RLock()
         self.outbox = queue.Queue()
         self.screen = None
         self.recording = None
@@ -125,7 +127,7 @@ class Bridge:
         self.send(pb.InputEvent(key_event=pb.KeyboardEvent(text=text)))
 
     def shared_frames(self, width, height):
-        if not self.frames:
+        if not self.frames or self.copy_frames:
             return None, None
         size = width * height * 4
         path = self.frames.with_name(f"{self.frames.stem}-{size}.frame")
@@ -153,10 +155,12 @@ class Bridge:
         else:
             request = pb.ImageFormat(format=pb.ImageFormat.RGB888, width=width, height=height)
         self.screen = call = self.stub.streamScreenshot(request, metadata=self.metadata)
+        arrived = threading.Event()
 
         def pump():
             try:
                 for image in call:
+                    arrived.set()
                     if wanted and not wanted():
                         continue
                     shape = image.format
@@ -171,7 +175,22 @@ class Bridge:
             finally:
                 if view:
                     view.close()
+                    give_up()
 
+        def give_up():
+            # An emulator that rejects the shared memory file ("Rejected shared memory handle") sends nothing
+            # or ends the stream, which left the screen blank. Ask again for plain images instead
+            with self.fallback:
+                if arrived.is_set() or self.screen is not call or self.closed:
+                    return
+                self.copy_frames = True
+                with contextlib.suppress(ValueError, grpc.RpcError):
+                    self.watch(width, height, on_frame, wanted)
+
+        if view:
+            timer = threading.Timer(SHARED_FRAME_WAIT, give_up)
+            timer.daemon = True
+            timer.start()
         threading.Thread(target=pump, daemon=True).start()
 
     def unwatch(self):

@@ -685,6 +685,43 @@ class Regressions(unittest.TestCase):
         self.assertEqual(list(events), [])
         self.assertEqual(bridge.outbox.get_nowait(), "second")
 
+    def test_a_rejected_shared_screen_falls_back_to_plain_images(self):
+        # Emulator 37.3 refused the shared frame file and sent nothing, which left the screen blank (#25, #26)
+        from unittest import mock
+        from androidbox import bridge as bridge_module
+        from androidbox.bridge import Bridge
+
+        class Stream:
+            def __init__(self, images):
+                self.images, self.done = images, threading.Event()
+
+            def __iter__(self):
+                yield from self.images
+                self.done.wait(5)
+
+            def cancel(self):
+                self.done.set()
+
+        shared = []
+
+        def stream(request, metadata):
+            shared.append(request.transport.channel == pb.ImageTransport.MMAP)
+            if shared[-1]:
+                return Stream([])
+            return Stream([pb.Image(image=bytes(2 * 2 * 3), format=pb.ImageFormat(width=2, height=2))])
+
+        bridge = Bridge.__new__(Bridge)
+        bridge.stub = types.SimpleNamespace(streamScreenshot=stream)
+        bridge.metadata, bridge.screen, bridge.closed = [], None, False
+        bridge.frames = Path(tempfile.mkdtemp()) / "androidbox-test.frame"
+        bridge.copy_frames, bridge.fallback = False, threading.RLock()
+        shown = threading.Event()
+        with mock.patch.object(bridge_module, "SHARED_FRAME_WAIT", 0.2):
+            bridge.watch(2, 2, lambda *frame: shown.set())
+            self.assertTrue(shown.wait(5))
+        self.assertEqual(shared, [True, False])
+        bridge.unwatch()
+
     def test_the_log_is_searched_for_every_known_problem(self):
         from androidbox import diagnostics
         log = "ok\n  E AndroidRuntime: FATAL EXCEPTION: main\nI ActivityManager: ANR in com.game\nfine"

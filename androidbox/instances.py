@@ -382,7 +382,8 @@ def erase(instance):
         if not instance.folder.exists():
             break
         time.sleep(0.5)
-    for frames in paths.DATA.glob(f"{instance.id}-*.frame"):
+    # Frames from before 1.12.2 were kept in the data folder
+    for frames in [*paths.FRAMES.glob(f"androidbox-{instance.id}-*.frame"), *paths.DATA.glob(f"{instance.id}-*.frame")]:
         with contextlib.suppress(OSError):
             frames.unlink()
 

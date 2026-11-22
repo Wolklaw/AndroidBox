@@ -215,7 +215,7 @@ class Controller(QObject):
 
     def attach(self, token):
         self.token = token
-        self.bridge = Bridge(self.instance.grpc_port, token, frames=paths.DATA / f"{self.instance.id}.frame")
+        self.bridge = Bridge(self.instance.grpc_port, token, frames=paths.FRAMES / f"androidbox-{self.instance.id}.frame")
         self.skip_clip = True
         self.bridge.watch_clipboard(lambda text: on_main_thread(lambda: self.clip_from_android(text)))
         QGuiApplication.clipboard().dataChanged.connect(self.clip_from_windows)
