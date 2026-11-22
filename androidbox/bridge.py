@@ -1,6 +1,8 @@
 import contextlib
 import mmap
 import queue
+import tempfile
+from pathlib import Path
 import threading
 import time
 
@@ -31,7 +33,8 @@ class Bridge:
                                              options=[("grpc.max_receive_message_length", 256 << 20)])
         self.stub = rpc.EmulatorControllerStub(self.channel)
         self.metadata = [("authorization", f"Bearer {token}")]
-        self.frames = frames
+        # Recent emulators only accept file-backed frames inside their temporary directories.
+        self.frames = Path(tempfile.gettempdir()) / "AndroidEmulator" / f"androidbox-{frames.name}" if frames else None
         self.outbox = queue.Queue()
         self.screen = None
         self.recording = None
@@ -131,6 +134,7 @@ class Bridge:
                 with contextlib.suppress(OSError):
                     stale.unlink()
         try:
+            path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists() or path.stat().st_size < size:
                 path.write_bytes(bytes(size))
             with open(path, "r+b") as file:
