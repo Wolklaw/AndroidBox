@@ -13,6 +13,7 @@ os.environ.setdefault("ANDROIDBOX_HOME", tempfile.mkdtemp(prefix="androidbox-tes
 os.environ.setdefault("LOCALAPPDATA", tempfile.mkdtemp(prefix="androidbox-local-"))
 
 import base64  # noqa: E402
+import json  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 
@@ -146,7 +147,8 @@ class AppsPage(unittest.TestCase):
         except ImportError:
             self.skipTest("Qt isn't installed")
         app = QApplication.instance() or QApplication([])
-        host = N(page="library", active=lambda: None, run=lambda *a, **k: None, set_game_fps=lambda *a: None)
+        host = N(page="library", active=lambda: None, run=lambda *a, **k: None, set_game_fps=lambda *a: None,
+                 prefs={"game_list": True})
         page = pages.LibraryPage(host)
         controller = N(on=True, apps=["com.supercell.clashofclans", "org.test.zed"], running={"org.test.zed"},
                        instance=N(name="Main"), start=lambda: None, emulator=None)
@@ -1086,3 +1088,227 @@ def test_collect_adds_the_network_check_to_the_bundle(monkeypatch, tmp_path):
     assert "network.txt" in names and problems >= 1
     assert "== Network: The proxy doesn't work from this PC" in summary
     assert "secret" not in everything
+
+
+class GameList(unittest.TestCase):
+    """The shared game list: the files in the games folder, and how the app reads and uses them"""
+
+    def setUp(self):
+        from androidbox import gamelist
+        self.gamelist = gamelist
+        gamelist.CACHE.unlink(missing_ok=True)
+        gamelist.cache.clear()
+
+    def entry(self, **changes):
+        return {"package": "com.example.game", "name": "Example", "works": "yes", **changes}
+
+    def opener(self, text):
+        class Response:
+            def __init__(self):
+                self.body = text.encode()
+
+            def read(self):
+                return self.body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        return lambda request, timeout: Response()
+
+    def test_every_game_in_the_repository_checks_out(self):
+        # The index itself is rewritten on main by the Game list workflow, so a pull request that only adds a
+        # game's file passes here
+        sys.path.insert(0, str(ROOT / "tools"))
+        import build_games
+        found = build_games.entries()
+        self.assertTrue(found)
+        for path, _, wrong in found:
+            self.assertEqual(wrong, [], path.name)
+        self.assertEqual(build_games.duplicates(found), [])
+        self.assertTrue(self.gamelist.parse((ROOT / "games" / "index.json").read_text(encoding="utf-8")))
+
+    def test_entries_that_are_wrong_say_why(self):
+        problems = self.gamelist.problems
+        self.assertEqual(problems(self.entry(android="36", fps=60, notes="Fine")), [])
+        self.assertTrue(problems(self.entry(package="not a package")))
+        self.assertTrue(problems(self.entry(works="maybe")))
+        self.assertTrue(problems(self.entry(android=36)))
+        self.assertTrue(problems(self.entry(fps=75)))
+        self.assertTrue(problems(self.entry(notes="x" * 301)))
+        self.assertTrue(problems(self.entry(download="https://example.com/game.apk")))
+        self.assertTrue(problems(self.entry(controls=[{"kind": "tap", "x": 1.5, "y": 0.5, "key": "A"}])))
+        self.assertTrue(problems(self.entry(controls=[{"kind": "macro", "x": 0.5, "y": 0.5, "key": "M"}])))
+        self.assertTrue(problems(self.entry(controls=[{"kind": "tap", "x": 0.5, "y": 0.5, "script": "x"}])))
+        self.assertEqual(problems(self.entry(controls=[{"kind": "swipe", "x": 0.5, "y": 0.5, "x2": 0.5, "y2": 0.1,
+                                                        "key": "E"}])), [])
+
+    def test_one_bad_entry_does_not_hide_the_rest(self):
+        text = json.dumps({"format": 1, "games": [self.entry(), self.entry(package="com.other.game", works="?")]})
+        self.assertEqual(list(self.gamelist.parse(text)), ["com.example.game"])
+        with self.assertRaises(ValueError):
+            self.gamelist.parse(json.dumps({"format": 2, "games": []}))
+
+    def test_the_list_is_kept_for_offline_use_and_fetched_once_a_day(self):
+        gamelist = self.gamelist
+        text = gamelist.build([self.entry()])
+        self.assertTrue(gamelist.stale())
+        self.assertIn("com.example.game", gamelist.refresh(opener=self.opener(text)))
+        self.assertFalse(gamelist.stale())
+        gamelist.cache.clear()
+        self.assertEqual(gamelist.entry("com.example.game")["name"], "Example")
+
+        def offline(request, timeout):
+            raise OSError("no network")
+
+        self.assertIn("com.example.game", gamelist.refresh(force=True, opener=offline))
+        self.assertIn("com.example.game", gamelist.refresh(force=True, opener=self.opener("not json")))
+
+    def test_a_setup_is_used_and_a_shared_one_leaves_out_macros(self):
+        from androidbox import keymap, profiles
+        gamelist = self.gamelist
+        profiles.start()
+        package = "com.example.game"
+        controls = [{"kind": "joystick", "x": 0.14, "y": 0.68, "keys": ["W", "A", "S", "D"]},
+                    {"kind": "tap", "x": 0.88, "y": 0.66, "key": "Space"}]
+        self.assertEqual(gamelist.apply(self.entry(fps=60, controls=controls)), ["frame rate", "controls"])
+        self.assertEqual(profiles.game(package)["fps"], 60)
+        self.assertEqual([control.kind for control in keymap.load(package)], ["joystick", "tap"])
+
+        keymap.save(package, [*keymap.load(package), keymap.Control(kind="macro", x=0.5, y=0.5, key="M",
+                                                                     macro="Farm")])
+        shared = gamelist.entry_for(package, "Example", "partly", "  Turn graphics down  ", android="36", fps=60)
+        self.assertEqual(gamelist.problems(shared), [])
+        self.assertEqual([control["kind"] for control in shared["controls"]], ["joystick", "tap"])
+        self.assertEqual(shared["notes"], "Turn graphics down")
+        self.assertEqual(gamelist.summary(shared), "Partly works on Android 16  ·  has a setup")
+        self.assertEqual(gamelist.summary(shared, "36"), "Partly works on Android 16  ·  has a setup")
+        self.assertEqual(gamelist.summary(shared, "35"), "Partly works on Android 16, this is Android 15")
+        self.assertEqual(gamelist.summary(self.entry()), "Works")
+        keymap.save(package, [])
+        profiles.set_game(package, fps=0)
+
+    def test_the_apps_page_shows_what_the_list_says(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        try:
+            from types import SimpleNamespace as N
+
+            from PySide6.QtWidgets import QApplication, QLabel
+            from androidbox.ui import pages
+        except ImportError:
+            self.skipTest("Qt isn't installed")
+        app = QApplication.instance() or QApplication([])
+        text = self.gamelist.build([self.entry(android="36", fps=60, notes="Turn graphics down")])
+        self.gamelist.refresh(opener=self.opener(text))
+        host = N(page="library", active=lambda: None, run=lambda *a, **k: None, set_game_fps=lambda *a: None,
+                 prefs={"game_list": True})
+        page = pages.LibraryPage(host)
+        controller = N(on=True, apps=["com.example.game"], running=set(), instance=N(name="Main", api="35"),
+                       start=lambda: None, emulator=None)
+        page.refresh(controller)
+        texts = [label.text() for label in page.findChildren(QLabel)]
+        self.assertIn("Example", texts)
+        self.assertIn("Game list: Works on Android 16, this is Android 15", texts)
+        app.processEvents()
+
+    def test_a_play_store_link_only_takes_a_package_name(self):
+        self.assertEqual(self.gamelist.play_link("com.example.game"), "market://details?id=com.example.game")
+        for bad in ("com.example.game' ; reboot", "com.example game", "noperiod", ""):
+            with self.assertRaises(ValueError):
+                self.gamelist.play_link(bad)
+
+    def test_opening_a_link_quotes_it_for_the_device_shell(self):
+        from types import SimpleNamespace as N
+        calls = []
+        fake = N(adb=lambda *args, timeout=30: calls.append(args) or (0, ""))
+        emulator.Emulator.open_url(fake, "market://details?id=com.example.game")
+        self.assertEqual(calls[0][-1], "'market://details?id=com.example.game'")
+        self.assertIn("android.intent.action.VIEW", calls[0])
+
+    def offer_window(self, **prefs):
+        from types import SimpleNamespace as N
+        offers = []
+        window = N(prefs={"game_list": True, "game_list_offered": [], **prefs}, offers=offers,
+                   offer=N(show_offer=lambda text, action, then: offers.append(text)),
+                   use_game_setup=lambda *a: None)
+        window.set_pref = lambda key, value: window.prefs.__setitem__(key, value)
+        return window
+
+    def test_a_listed_games_setup_is_offered_once_and_only_when_it_isnt_set_up(self):
+        try:
+            from androidbox.ui.window import MainWindow
+        except ImportError:
+            self.skipTest("Qt isn't installed")
+        from types import SimpleNamespace as N
+        from androidbox import keymap, profiles
+        profiles.start()
+        controls = [{"kind": "tap", "x": 0.5, "y": 0.5, "key": "Space"}]
+        text = self.gamelist.build([self.entry(fps=60, controls=controls),
+                                    self.entry(package="com.example.plain")])
+        self.gamelist.refresh(opener=self.opener(text))
+        window = self.offer_window()
+        MainWindow.offer_game_setup(window, N(package="com.example.game"))
+        self.assertEqual(window.offers, ["The game list has a frame rate and controls for Example. Use them?"])
+        MainWindow.offer_game_setup(window, N(package="com.example.game"))
+        self.assertEqual(len(window.offers), 1, "offered a second time")
+        MainWindow.offer_game_setup(window, N(package="com.example.plain"))
+        self.assertEqual(len(window.offers), 1, "offered a game with nothing to use")
+
+        window = self.offer_window()
+        keymap.save("com.example.game", keymap.parse(controls))
+        MainWindow.offer_game_setup(window, N(package="com.example.game"))
+        self.assertEqual(window.offers, [], "offered over controls you set up yourself")
+        keymap.save("com.example.game", [])
+
+        window = self.offer_window(game_list=False)
+        MainWindow.offer_game_setup(window, N(package="com.example.game"))
+        self.assertEqual(window.offers, [], "offered with the game list turned off")
+
+    def test_the_game_list_page_filters_and_offers_what_fits(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        try:
+            from types import SimpleNamespace as N
+
+            from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QPushButton
+            from androidbox.ui import pages
+        except ImportError:
+            self.skipTest("Qt isn't installed")
+        app = QApplication.instance() or QApplication([])
+        text = self.gamelist.build([self.entry(fps=60), self.entry(package="com.other.racer", name="Racer",
+                                                                     works="no")])
+        self.gamelist.refresh(opener=self.opener(text))
+        controller = N(on=True, apps=["com.example.game"], instance=N(name="Main", api="36"))
+        host = N(page="gamelist", active=lambda: controller, run=lambda *a, **k: None, prefs={"game_list": True})
+        page = pages.GameListPage(host)
+        page.refresh()
+        page.show()
+
+        def shown():
+            return [label.text() for label in page.findChildren(QLabel) if label.isVisible()]
+
+        def buttons():
+            return [button.text() for button in page.findChildren(QPushButton) if button.isVisibleTo(page)]
+
+        self.assertIn("Games · 2", shown())
+        self.assertIn("Use setup", buttons())
+        self.assertIn("Open", buttons())
+        # A game that doesn't work isn't sent to Google Play
+        self.assertNotIn("Google Play", buttons())
+        filters = page.findChild(QComboBox)
+        filters.setCurrentIndex(filters.findData("no"))
+        self.assertIn("Games · 1 of 2", shown())
+        self.assertIn("Racer", shown())
+        self.assertNotIn("Example", shown())
+        filters.setCurrentIndex(filters.findData(""))
+        page.findChild(QLineEdit).setText("example")
+        self.assertIn("Games · 1 of 2", shown())
+
+        host.prefs["game_list"] = False
+        page.refresh()
+        from PySide6.QtCore import QEvent
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+        self.assertEqual(buttons(), ["Turn it on"])
+        app.processEvents()

@@ -503,6 +503,60 @@ class Toast(QLabel):
         self.fade.start()
 
 
+class Offer(QFrame):
+    """A suggestion that waits at the bottom of the window with one button, and goes away by itself. Unlike a
+    dialog it doesn't take the keyboard away from the game"""
+
+    def __init__(self, parent, seconds=15):
+        super().__init__(parent)
+        self.setObjectName("Toast")
+        self.seconds = seconds
+        self.action = None
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 8, 8, 8)
+        layout.setSpacing(10)
+        self.text = label("")
+        self.text.setStyleSheet("background: transparent;")
+        self.yes = button("", self.accept)
+        self.no = button("Not now", self.dismiss, kind="secondary")
+        for widget in (self.text, self.yes, self.no):
+            widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            layout.addWidget(widget)
+        self.timer = QTimer(self, singleShot=True, timeout=self.dismiss)
+        parent.installEventFilter(self)
+        self.hide()
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize and self.isVisible():
+            self.place()
+        return False
+
+    def place(self):
+        parent = self.parentWidget()
+        self.adjustSize()
+        self.setFixedWidth(min(self.sizeHint().width(), parent.width() - 32))
+        self.move((parent.width() - self.width()) // 2, parent.height() - self.height() - 76)
+
+    def show_offer(self, text, action_text, action):
+        self.text.setText(text)
+        self.yes.setText(action_text)
+        self.action = action
+        self.place()
+        self.raise_()
+        self.show()
+        self.timer.start(self.seconds * 1000)
+
+    def accept(self):
+        action, self.action = self.action, None
+        self.dismiss()
+        if action:
+            action()
+
+    def dismiss(self):
+        self.timer.stop()
+        self.hide()
+
+
 class Modal(QWidget):
     closed = Signal()
 

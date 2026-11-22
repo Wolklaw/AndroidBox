@@ -52,7 +52,7 @@ apps on a Windows PC? Here is exactly what Androidbox does, and where you can ch
 |---|---|---|
 | Ads and promoted apps | None | The source is in this repository |
 | Account | None for Androidbox itself. Google Play asks for your Google account, as on any Android phone | Nothing in the app asks for one |
-| Servers it contacts | `dl.google.com` for Android downloads, GitHub to look for updates, Mozilla only when you install Firefox from the app, and any download mirror you add yourself | Search the source for web addresses |
+| Servers it contacts | `dl.google.com` for Android downloads, GitHub to look for updates and read the game list, Mozilla only when you install Firefox from the app, and any download mirror you add yourself | Search the source for web addresses |
 | Android engine | Google's official Android Emulator, the one inside Android Studio | [How it works](#how-it-works) |
 | Google Play | The real Play Store, on Android 16 and 11 | [Android 16 with Google Play](#android-16-with-google-play) |
 | Source code | Open, MIT license | [LICENSE](LICENSE) |
@@ -257,6 +257,22 @@ a game: point it at `Androidbox.exe` with `--instance <name or id> --launch <pac
 `--background` starts the instance without raising the Androidbox window (handy for autostart), and
 leaving out `--launch` just opens or switches to that instance.
 `--stop <name or id>` shuts one instance down, and `--start-all` and `--stop-all` start or stop every instance.
+
+### Game list
+
+The [game list](games) says how well games run on Androidbox, on which Android version, and can hold a frame
+rate and controls layout to start from. Open **Game list** in the sidebar to search every game on it, filter by
+how well they run, and open one or find it on Google Play. The **Apps** page shows what the list says next to
+each game you have installed.
+
+When you open a game that's on the list and you haven't set it up yourself, Androidbox offers its setup once, at
+the bottom of the window. **Use setup** on the Game list page, or in the game's **⋯** menu on the Apps page, does
+the same at any time. Nothing is changed without you choosing it.
+
+The list is read from this repository at most once a day and kept for offline use, and nothing is sent back. Turn
+it off under **All instances → Everywhere → Game list**. To add a game you've checked, choose **Share to the game
+list…** in its **⋯** menu and add the file to a pull request, or [open a game
+report](https://github.com/Wolklaw/Androidbox/issues/new?template=game_report.yml). [How to add a game](games#readme).
 
 ### Saved states
 

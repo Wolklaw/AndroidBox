@@ -1,0 +1,45 @@
+name: Game list
+
+# Checks the files in games/ on pull requests, and on main rewrites games/index.json, the file Androidbox reads,
+# so people adding a game only have to add its own file
+on:
+  pull_request:
+    paths: ["games/**", "androidbox/gamelist.py", "tools/build_games.py"]
+  push:
+    branches: [main]
+    paths: ["games/**", "androidbox/gamelist.py", "tools/build_games.py"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: game-list-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  games:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check every game's file
+        run: python tools/build_games.py --entries
+
+      - name: Rewrite the index and commit it if it changed
+        if: github.event_name != 'pull_request'
+        run: |
+          python tools/build_games.py
+          if git diff --quiet -- games/index.json; then
+            echo "The index is up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add games/index.json
+          git commit -m "Rewrite the game list index"
+          git push

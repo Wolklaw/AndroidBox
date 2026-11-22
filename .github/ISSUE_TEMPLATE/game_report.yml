@@ -1,0 +1,55 @@
+name: Add a game to the game list
+description: Tell us how a game runs on Androidbox, so it can go on the shared game list
+labels: ["game list"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The quickest way: on the **Apps** page, open the game's **⋯** menu, choose **Share to the game list…** and
+        attach the file it saves here. Or fill in what you know below. Only report what you checked yourself.
+  - type: input
+    id: name
+    attributes:
+      label: Game
+      placeholder: Example Game
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Package name
+      description: Shown under the game's name on the Apps page.
+      placeholder: com.example.game
+    validations:
+      required: true
+  - type: dropdown
+    id: works
+    attributes:
+      label: How does it run?
+      options:
+        - Works
+        - Partly works
+        - Doesn't work
+    validations:
+      required: true
+  - type: dropdown
+    id: android
+    attributes:
+      label: Android version you checked it on
+      options:
+        - Android 16
+        - Android 15
+        - Android 11
+        - Android 4.1 (OUYA / GameStick)
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything worth knowing
+      description: A setting to change, a frame rate that suits it, what doesn't work. Up to 300 characters goes on the list.
+  - type: textarea
+    id: file
+    attributes:
+      label: The file from Share to the game list (optional)
+      description: Drag the .json file here, or paste what's in it.

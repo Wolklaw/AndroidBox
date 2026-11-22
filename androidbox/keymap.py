@@ -12,6 +12,7 @@ PAD_DIRECTIONS = ["Pad Up", "Pad Left", "Pad Down", "Pad Right"]
 SHORT_NAMES = {"Mouse Left": "LMB", "Mouse Right": "RMB"}
 # Joysticks and tilts are steered by four keys, every other kind by one
 FOUR_KEYS = ("joystick", "tilt")
+KINDS = ("tap", "joystick", "aim", "look", "skill", "turbo", "swipe", "toggle", "tilt", "macro")
 
 
 @dataclass

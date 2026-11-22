@@ -1,0 +1,6 @@
+{
+ "package": "com.supercell.clashofclans",
+ "name": "Clash of Clans",
+ "works": "no",
+ "notes": "Checks whether it runs on an emulator and closes itself within a second. Supercell does this on purpose, and Androidbox doesn't hide the emulator from games."
+}

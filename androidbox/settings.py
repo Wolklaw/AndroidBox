@@ -18,6 +18,9 @@ LOCAL = {
     "inspector": True,
     "default_storage_path": "",
     "mirrors": [],
+    # The shared game list, read from GitHub once a day, and the games whose setup was already offered
+    "game_list": True,
+    "game_list_offered": [],
 }
 
 PROFILE = {

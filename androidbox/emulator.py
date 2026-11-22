@@ -445,6 +445,9 @@ class Emulator:
         self.adb("shell", f"settings put system peak_refresh_rate {fps}.0"
                           f" && settings put system min_refresh_rate {fps}.0")
 
+    def open_url(self, url):
+        return self.adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", f"'{url}'", timeout=20)
+
     def launch(self, package):
         self.adb("shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1", timeout=20)
 

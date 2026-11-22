@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFra
                                QKeySequenceEdit, QLabel, QLineEdit, QMenu, QPlainTextEdit, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import VERSION, claude, diagnostics, installer, instances, keymap, macros, native, paths, profiles, system, vision
+from .. import VERSION, claude, diagnostics, gamelist, installer, instances, keymap, macros, native, paths, profiles, system, vision
 from .controller import plural
 from .inspector import Inspector
 from .phone import PhoneView
@@ -368,10 +368,17 @@ class ControlsPage(Page):
         starters = button("Starter layouts", kind="secondary")
         starters.setEnabled(bool(package))
         starter_menu = QMenu(starters)
+        listed = gamelist.entry(package) if package and self.host.prefs["game_list"] else None
+        if listed and listed.get("controls"):
+            starter_menu.addAction(f"From the game list  ·  {plural(len(listed['controls']), 'control')}",
+                                   lambda: self.host.use_game_setup(None, package))
+            starter_menu.addSeparator()
         for name, (what, _) in keymap.TEMPLATES.items():
             starter_menu.addAction(f"{name}  ·  {what}", lambda n=name: self.host.apply_template(package, n))
         starters.setMenu(starter_menu)
-        self.add(card(label("Current app", "Section"), current, row(edit, clear, None, starters, load, share)))
+        hint = [label(f"The game list has a layout for {listed['name']}. Use it from Starter layouts.", "Muted",
+                      wrap=True)] if listed and listed.get("controls") else []
+        self.add(card(label("Current app", "Section"), current, *hint, row(edit, clear, None, starters, load, share)))
 
         enabled = Toggle(prefs["game_controls"])
         enabled.toggled.connect(lambda on: self.host.set_pref("game_controls", on))
@@ -820,6 +827,8 @@ class InstancesPage(Page):
         automatic.setEnabled(system.can_update())
         automatic.toggled.connect(lambda on: host.set_pref("auto_update", on))
         check_now = button("Check now", host.check_now, kind="secondary")
+        shared_list = Toggle(host.prefs["game_list"])
+        shared_list.toggled.connect(lambda on: host.set_pref("game_list", on))
         access = Toggle(host.prefs["claude_access"])
         access.toggled.connect(lambda on: host.set_pref("claude_access", on))
         self.add(card(label("Everywhere", "Section"),
@@ -846,6 +855,9 @@ class InstancesPage(Page):
                                                                 " Only the installed app can do this."),
                               automatic), divider(),
                       setting("Look for an update now", "Checks GitHub right away.", check_now), divider(),
+                      setting("Game list", "Reads the shared list of how well games run from GitHub once a day, "
+                                           "shows it on the Apps page and offers a game's setup the first time you "
+                                           "open it. Nothing is sent.", shared_list), divider(),
                       setting("Let Claude Code control Android", "Lets Claude Code on this PC tap, type, take "
                                                                   "screenshots and install apps on your running "
                                                                   "instances to test them, as an MCP server or "
@@ -1306,6 +1318,7 @@ class LibraryPage(Page):
         super().__init__()
         self.host = host
         self.query = ""
+        self.checking_list = False
 
     def refresh(self, controller):
         self.clear()
@@ -1324,7 +1337,12 @@ class LibraryPage(Page):
 
             host.run(look, lambda result: self.loaded(controller, *result), lambda _: None)
             return
+        use_list = host.prefs["game_list"]
+        if use_list:
+            self.check_list(controller)
         refresh = button("Refresh", lambda: self.reload(controller), kind="secondary")
+        browse = button("Game list", lambda: host.show_page("gamelist"), kind="secondary")
+        browse.setVisible(use_list)
         search = QLineEdit(self.query)
         search.setPlaceholderText("Search apps")
         search.setClearButtonEnabled(True)
@@ -1332,7 +1350,7 @@ class LibraryPage(Page):
         stop_all = button("Stop all", lambda: host.stop_all_apps(controller), kind="secondary")
         stop_all.setVisible(bool(controller.running))
         install = button("Install APK…", lambda: host.pick_apps(controller), kind="secondary")
-        self.add(row(search, None, stop_all, install, refresh))
+        self.add(row(search, None, stop_all, browse, install, refresh))
         rows = []
         found = []
         # Running apps first, then by name
@@ -1346,12 +1364,23 @@ class LibraryPage(Page):
                                                                                                box.currentData()))
             alive = package in controller.running
             setup = "  ·  controls set up" if keymap.profile(package).exists() else ""
-            words = column(label(name, "Subheading"),
-                           label(package + setup + ("  ·  running" if alive else ""), "Small"), spacing=2)
+            listed = gamelist.entry(package) if use_list else None
+            name = listed["name"] if listed else name
+            lines = [label(name, "Subheading"), label(package + setup + ("  ·  running" if alive else ""), "Small")]
+            if listed:
+                lines.append(self.list_line(controller, listed))
+            words = column(*lines, spacing=2)
+            from_list = [("Use the game list setup", lambda p=package: host.use_game_setup(controller, p))] \
+                if listed and (listed.get("fps") or listed.get("controls")) else []
+            notes = [("Game list notes", lambda found=listed: self.show_notes(found))] \
+                if listed and listed.get("notes") else []
             more = menu_button([
                 ("Force stop", lambda p=package: host.stop_app(controller, p)),
                 ("Create desktop shortcut", lambda p=package: host.shortcut_for(controller, p)),
                 (None, None),
+                *from_list, *notes,
+                *([("Share to the game list…", lambda p=package, n=name: host.share_to_game_list(controller, p, n)),
+                   (None, None)] if use_list else []),
                 ("Clear data", lambda p=package: host.clear_app_data(controller, p)),
                 ("Uninstall", lambda p=package: host.uninstall_app(controller, p)),
             ])
@@ -1384,6 +1413,33 @@ class LibraryPage(Page):
             self.add(card(label("Nothing installed yet. Get apps from Google Play, or drop an APK file on the screen.",
                                 "Muted", wrap=True)))
 
+    def list_line(self, controller, listed):
+        line = label(f"Game list: {gamelist.summary(listed, controller.instance.api)}", "Small")
+        tone = {"yes": "green", "partly": "yellow", "no": "red"}[listed["works"]]
+        styled(line, lambda widget: widget.setStyleSheet(f"color: {COLORS[tone]};"))
+        if listed.get("notes"):
+            line.setToolTip(listed["notes"])
+        return line
+
+    def show_notes(self, listed):
+        modal = Modal(self.host.dialog_parent(), listed["name"], listed["notes"])
+        modal.action("Close")
+        modal.open()
+
+    def check_list(self, controller):
+        # The list changes rarely, so it is downloaded at most once a day, in the background
+        if self.checking_list or not gamelist.stale():
+            return
+        self.checking_list = True
+        before = gamelist.games()
+
+        def done(found):
+            self.checking_list = False
+            if found != before and self.host.page == "library" and self.host.active() is controller:
+                self.refresh(controller)
+
+        self.host.run(gamelist.refresh, done, lambda _: setattr(self, "checking_list", False))
+
     def loaded(self, controller, found, running):
         controller.apps = found
         controller.running = running
@@ -1397,6 +1453,148 @@ class LibraryPage(Page):
     def open_app(self, controller, package):
         controller.launch(package)
         self.host.show_page("screen")
+
+
+LIST_FILTERS = (("Every game", ""), ("Works", "yes"), ("Partly works", "partly"), ("Doesn't work", "no"),
+                ("Installed here", "installed"), ("Has a setup", "setup"))
+
+
+def when(seconds_ago):
+    if seconds_ago < 90:
+        return "just now"
+    if seconds_ago < 90 * 60:
+        return f"{round(seconds_ago / 60)} minutes ago"
+    if seconds_ago < 36 * 60 * 60:
+        return f"{round(seconds_ago / 3600)} hours ago"
+    return f"{round(seconds_ago / 86400)} days ago"
+
+
+class GameListPage(Page):
+    """Every game on the shared list, not only the installed ones, with what to do about each"""
+
+    def __init__(self, host):
+        super().__init__()
+        self.host = host
+        self.query = ""
+        self.only = ""
+        self.fetching = False
+
+    def refresh(self, controller=None):
+        self.clear()
+        host = self.host
+        controller = host.active()
+        self.intro("Game list", "How well games run on Androidbox, from people who checked them. Use a game's setup "
+                                "to start with its frame rate and controls, or add a game you've checked.")
+        if not host.prefs["game_list"]:
+            self.add(card(label("The game list is off, so Androidbox doesn't read it from GitHub.", "Muted",
+                                wrap=True),
+                          row(button("Turn it on", lambda: (host.set_pref("game_list", True), self.fetch())), None)))
+            return
+        games = gamelist.games()
+        checked = gamelist.checked()
+        if self.fetching:
+            status = "Reading the list from GitHub…"
+        elif checked:
+            status = f"{plural(len(games), 'game')}  ·  updated {when(time.time() - checked)}"
+        else:
+            status = "Not read from GitHub yet."
+        fetch = button("Check now", self.fetch, kind="secondary")
+        fetch.setEnabled(not self.fetching)
+        contribute = button("Add a game", lambda: host.open_link(gamelist.CONTRIBUTE), kind="secondary")
+        self.add(row(label(status, "Muted"), None, contribute, fetch))
+        if not games:
+            if not checked and not self.fetching:
+                self.fetch()
+            self.add(card(label("Nothing to show yet. The list downloads from GitHub the first time you open it, "
+                                "and is kept for when you're offline.", "Muted", wrap=True)))
+            return
+
+        installed = set(controller.apps or []) if controller and controller.on else set()
+        if controller and controller.on and controller.apps is None:
+            host.run(controller.emulator.apps, lambda found: self.apps_loaded(controller, found), lambda _: None)
+        search = QLineEdit(self.query)
+        search.setPlaceholderText("Search games")
+        search.setClearButtonEnabled(True)
+        search.setMinimumWidth(220)
+        only = choice(LIST_FILTERS, self.only)
+        only.setMinimumWidth(180)
+        self.add(row(search, only, None))
+
+        heading = label("", "Section")
+        nothing = label("No games match.", "Muted")
+        rows = []
+        for entry in sorted(games.values(), key=lambda found: found["name"].lower()):
+            line = self.game_row(controller, entry, entry["package"] in installed)
+            haystack = f"{entry['name']} {entry['package']}".lower()
+            tags = {entry["works"]} | ({"installed"} if entry["package"] in installed else set()) | \
+                ({"setup"} if entry.get("fps") or entry.get("controls") else set())
+            rows.append((haystack, tags, line))
+
+        def narrow(*_):
+            self.query = search.text()
+            self.only = only.currentData()
+            words = self.query.lower().split()
+            shown = 0
+            for haystack, tags, line in rows:
+                match = all(word in haystack for word in words) and (not self.only or self.only in tags)
+                line.setVisible(match)
+                shown += match
+            heading.setText(f"Games · {len(rows)}" if shown == len(rows) else f"Games · {shown} of {len(rows)}")
+            nothing.setVisible(not shown)
+
+        search.textChanged.connect(narrow)
+        only.currentIndexChanged.connect(narrow)
+        narrow()
+        self.add(card(heading, nothing, *[line for _, _, line in rows], spacing=14))
+
+    def game_row(self, controller, entry, here):
+        host = self.host
+        package = entry["package"]
+        api = controller.instance.api if controller else None
+        verdict = label(gamelist.summary(entry, api), "Small")
+        tone = {"yes": "green", "partly": "yellow", "no": "red"}[entry["works"]]
+        styled(verdict, lambda widget: widget.setStyleSheet(f"color: {COLORS[tone]};"))
+        lines = [label(entry["name"], "Subheading"),
+                 label(package + ("  ·  installed" if here else ""), "Small"), verdict]
+        if entry.get("notes"):
+            lines.append(label(entry["notes"], "Muted", wrap=True))
+        words = column(*lines, spacing=2)
+        actions = []
+        if entry.get("fps") or entry.get("controls"):
+            actions.append(button("Use setup", lambda: host.use_game_setup(controller, package), kind="secondary"))
+        if controller and controller.on and here:
+            actions.append(button("Open", lambda: (controller.launch(package), host.show_page("screen"))))
+        elif controller and controller.on and installer.has_playstore(controller.instance.api) \
+                and entry["works"] != "no":
+            actions.append(button("Google Play", lambda: host.open_in_play(controller, package)))
+        line = row(avatar(instances.initials(entry["name"]), "raised"), words, *actions, spacing=10)
+        line.layout().setStretchFactor(words, 1)
+        return line
+
+    def apps_loaded(self, controller, found):
+        controller.apps = found
+        if self.host.page == "gamelist":
+            self.refresh()
+
+    def fetch(self):
+        if self.fetching:
+            return
+        self.fetching = True
+
+        def done(_):
+            self.fetching = False
+            if self.host.page == "gamelist":
+                self.refresh()
+
+        def failed(_):
+            self.fetching = False
+            self.host.toast("Couldn't read the game list from GitHub. The copy you have is kept", "bad")
+            if self.host.page == "gamelist":
+                self.refresh()
+
+        self.host.run(lambda: gamelist.download(), done, failed)
+        if self.host.page == "gamelist":
+            self.refresh()
 
 
 class SetupPage(QWidget):

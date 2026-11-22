@@ -1,0 +1,18 @@
+{
+ "format": 1,
+ "games": [
+  {
+   "package": "com.candywriter.bitlife",
+   "name": "BitLife",
+   "works": "yes",
+   "android": "36",
+   "notes": "Crashes a few seconds after it starts on Android 15, because of that version's ARM translator. Runs on Android 16."
+  },
+  {
+   "package": "com.supercell.clashofclans",
+   "name": "Clash of Clans",
+   "works": "no",
+   "notes": "Checks whether it runs on an emulator and closes itself within a second. Supercell does this on purpose, and Androidbox doesn't hide the emulator from games."
+  }
+ ]
+}

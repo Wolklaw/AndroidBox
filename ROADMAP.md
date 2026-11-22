@@ -3,6 +3,9 @@
 What is planned for Androidbox, roughly in order. Nothing here is a promise or a date.
 
 ## Done recently
+- Game list: a shared list on GitHub of how well games run, with a frame rate and controls to start from. Browse
+  it from the sidebar, see it on the Apps page, get a game's setup offered the first time you open it, and share
+  your own setup as a file for a pull request or a game report
 - Internet trouble in Android: the diagnostics export checks the proxy step by step, the PC's own connection,
   and DNS and VPN inside Android
 - Macro smart steps: wait until a marked part of the screen looks the same or until the screen stops changing,
@@ -28,10 +31,12 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 
 ## Bigger work
 
-### 1. A shared game list
-A public GitHub repository with one entry per game: which Android version to use, a keymap, macros, an FPS cap, and whether it works, partly works or doesn't. Androidbox reads the list from
-GitHub, so no new server is involved. Anyone can add a game with a pull request, and setting up a game becomes
-one click.
+### 1. More on the game list
+- Check the list's frame rates and controls on a running instance with real games, and grow the list past the
+  first entries
+- Macros in an entry, for games where a recorded routine is the setup that matters. They only play on the display
+  they were recorded on, so an entry needs to say which one
+- Let a game's entry suggest the instance settings it needs, such as Android 11 for 32-bit-only games
 
 ### 2. A helper app inside Android
 A small open-source app, installed only if you choose to, that makes these possible:

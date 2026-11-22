@@ -1,0 +1,7 @@
+{
+ "package": "com.candywriter.bitlife",
+ "name": "BitLife",
+ "works": "yes",
+ "android": "36",
+ "notes": "Crashes a few seconds after it starts on Android 15, because of that version's ARM translator. Runs on Android 16."
+}

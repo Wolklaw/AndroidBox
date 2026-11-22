@@ -1,3 +1,4 @@
+import json
 import random
 import re
 import os
@@ -12,13 +13,13 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QHB
                                QMenu, QPlainTextEdit, QScrollArea, QStackedWidget, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 
-from .. import (VERSION, browser, claude, diagnostics, emulator, installer, instances, keymap, macros, native,
+from .. import (VERSION, browser, claude, diagnostics, emulator, gamelist, installer, instances, keymap, macros, native,
                 paths, profiles, relocate, settings, system, updates)
 from ..hotkeys import Hotkeys
 from . import tasks
 from .controller import Controller, plural
 from .host import ScreenActions
-from .pages import (ControlsPage, InstancesPage, LibraryPage, MacrosPage, NoAccelerationPage, ProfilePage, Progress,
+from .pages import (ControlsPage, GameListPage, InstancesPage, LibraryPage, MacrosPage, NoAccelerationPage, ProfilePage, Progress,
                     ScreenPage, SettingsPage, SetupPage, app_name, show_text)
 from . import fun
 from .palette import Palette
@@ -26,7 +27,7 @@ from .popout import PopoutWindow
 from . import theme
 from .theme import COLORS, ICONS, Fonts, stylesheet
 from .widgets import (STATE_WORDS, STATUS_COLORS, InstanceButton, Modal, NavButton, ProfileButton, TabButton, Toast,
-                      ToolButton, button, column, confirm, divider, glyph_css, label, retheme, row, style_title_bar)
+                      Offer, ToolButton, button, column, confirm, divider, glyph_css, label, retheme, row, style_title_bar)
 
 PAGES = {
     "screen": ("screen", "Screen"),
@@ -36,9 +37,10 @@ PAGES = {
     "settings": ("settings", "Settings"),
     "instances": ("apps", "All instances"),
     "profile": ("person", "Profile"),
+    "gamelist": ("game", "Game list"),
 }
 
-GLOBAL_PAGES = ("instances", "profile")
+GLOBAL_PAGES = ("instances", "profile", "gamelist")
 HEADER_STATS_MIN_WIDTH = 1180
 
 UPDATE_CHECK_HOURS = 6
@@ -105,6 +107,7 @@ class MainWindow(QMainWindow, ScreenActions):
         main_layout.addWidget(self.stack, 1)
         root.addWidget(main, 1)
         self.toaster = Toast(central)
+        self.offer = Offer(central)
         self.fault = None
         self.fault_parts = (central, main)
         self.stack.currentChanged.connect(lambda _: self.fault and self.fault.update())
@@ -119,6 +122,7 @@ class MainWindow(QMainWindow, ScreenActions):
             "settings": SettingsPage(self),
             "instances": InstancesPage(self),
             "profile": ProfilePage(self),
+            "gamelist": GameListPage(self),
         }
         self.setup = SetupPage(self)
         self.no_acceleration = NoAccelerationPage(self)
@@ -208,6 +212,10 @@ class MainWindow(QMainWindow, ScreenActions):
         self.overview = NavButton(ICONS["apps"], "All instances")
         self.overview.clicked.connect(lambda: self.select(None))
         layout.addWidget(self.overview)
+        self.game_list_nav = NavButton(ICONS["game"], "Game list")
+        self.game_list_nav.clicked.connect(lambda: self.show_page("gamelist"))
+        self.game_list_nav.setVisible(self.prefs["game_list"])
+        layout.addWidget(self.game_list_nav)
         layout.addStretch(1)
 
         layout.addWidget(button("Search everything  ·  Ctrl+K", self.open_palette, kind="secondary"))
@@ -404,6 +412,7 @@ class MainWindow(QMainWindow, ScreenActions):
         for key, nav in self.nav_buttons.items():
             nav.setChecked(key == name)
         self.overview.setChecked(self.current is None and name == "instances")
+        self.game_list_nav.setChecked(name == "gamelist")
         # An instance's tabs belong to the instance's own pages, not to All instances or Profile
         self.page_section.setVisible(controller is not None and name not in GLOBAL_PAGES)
         self.update_power()
@@ -457,6 +466,7 @@ class MainWindow(QMainWindow, ScreenActions):
         self.update_mirrors()
 
     def app_changed(self, controller):
+        self.offer_game_setup(controller)
         if controller is self.active():
             self.update_header()
             if self.page == "controls":
@@ -491,6 +501,8 @@ class MainWindow(QMainWindow, ScreenActions):
             installer.set_mirrors(value)
         if key == "claude_access":
             claude.enable() if value else claude.disable()
+        if key == "game_list":
+            self.game_list_nav.setVisible(value)
         if key == "sync_input":
             self.update_mirrors()
         if key == "close_to_tray":
@@ -1074,6 +1086,8 @@ class MainWindow(QMainWindow, ScreenActions):
                 add(f"Go to {PAGES[name][1]}", "Page", lambda name=name: self.show_page(name))
         add("Go to All instances", "Page", lambda: self.select(None))
         add("Go to Profile", "Page", lambda: self.show_page("profile"))
+        if self.prefs["game_list"]:
+            add("Go to Game list", "Page", lambda: self.show_page("gamelist"))
         for other in self.controllers.values():
             name = other.instance.name
             add(f"Open {name}", "Instance", lambda other=other: self.select(other.instance.id))
@@ -1518,6 +1532,103 @@ class MainWindow(QMainWindow, ScreenActions):
                     danger=True)
         else:
             apply()
+
+    def offer_game_setup(self, controller):
+        # Once per game: when a game on the list opens and you haven't set it up yourself, offer the list's setup
+        package = controller.package
+        if not package or not self.prefs["game_list"] or package in self.prefs["game_list_offered"]:
+            return
+        listed = gamelist.entry(package)
+        if not listed or not (listed.get("fps") or listed.get("controls")):
+            return
+        if keymap.load(package) or profiles.game(package).get("fps"):
+            return
+        self.set_pref("game_list_offered", [*self.prefs["game_list_offered"], package][-500:])
+        parts = [part for part, there in (("a frame rate", listed.get("fps")), ("controls", listed.get("controls")))
+                 if there]
+        self.offer.show_offer(f"The game list has {' and '.join(parts)} for {listed['name']}. Use them?",
+                              "Use them", lambda: self.use_game_setup(controller, package))
+
+    def open_link(self, url):
+        QDesktopServices.openUrl(QUrl(url))
+
+    def open_in_play(self, controller, package):
+        def opened(result):
+            code, output = result
+            if code != 0:
+                self.toast(f"Google Play didn't open: {output.splitlines()[-1] if output else 'no answer'}", "bad")
+                return
+            self.select(controller.instance.id)
+
+        self.run(lambda: controller.emulator.open_url(gamelist.play_link(package)), opened,
+                 lambda error: self.toast(f"Google Play didn't open: {error}", "bad"))
+
+    def use_game_setup(self, controller, package):
+        listed = gamelist.entry(package)
+        if not listed:
+            return
+
+        def apply():
+            changed = gamelist.apply(listed)
+            for phone in self.phones():
+                if phone.package == package:
+                    phone.load_controls()
+            for each in self.controllers.values():
+                if each.package == package:
+                    each.refresh_frame_rate()
+            self.controls_changed()
+            if self.page in ("library", "gamelist") and (self.active() or self.page == "gamelist"):
+                self.show_page(self.page)
+            self.toast(f"Using the game list's {' and '.join(changed)} for {listed['name']}", "good")
+
+        if listed.get("controls") and keymap.load(package):
+            confirm(self.dialog_parent(), "Replace this game's controls?",
+                    f"The game list's layout takes the place of the controls you set up for {listed['name']}. "
+                    "Export yours first on the Controls page if you want to keep them.", "Replace", apply, danger=True)
+        else:
+            apply()
+
+    def share_to_game_list(self, controller, package, name):
+        modal = Modal(self.dialog_parent(), "Share to the game list",
+                      "Makes a file with how this game runs here, its frame rate and its controls, to add to the "
+                      "game list on GitHub. Only share what you have checked yourself.", width=520)
+        title = QLineEdit(name)
+        title.setMaxLength(gamelist.NAME_LIMIT)
+        works = QComboBox()
+        for value, words in gamelist.WORKS.items():
+            works.addItem(words, value)
+        notes = QLineEdit()
+        notes.setMaxLength(gamelist.NOTES_LIMIT)
+        notes.setPlaceholderText("Anything worth knowing: a setting to change, what doesn't work")
+        modal.add(label("Name", "Section"))
+        modal.add(title)
+        modal.add(label(f"How it runs on {gamelist.android_name(controller.instance.api)}", "Section"))
+        modal.add(works)
+        modal.add(label("Notes", "Section"))
+        modal.add(notes)
+        modal.cancel()
+
+        def save():
+            entry = gamelist.entry_for(package, title.text() or name, works.currentData(), notes.text(),
+                                       android=controller.instance.api, fps=profiles.game(package).get("fps", 0))
+            wrong = gamelist.problems(entry)
+            if wrong:
+                self.toast(wrong[0], "bad")
+                return
+            file, _ = QFileDialog.getSaveFileName(self, "Save the game list entry",
+                                                  str(documents() / f"{package}.json"), LAYOUT_FILTER)
+            if not file:
+                return
+            Path(file).write_text(json.dumps(entry, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+            done = Modal(self.dialog_parent(), "Saved",
+                         f"{Path(file).name} is ready. Add it to the games folder on GitHub in a pull request, or "
+                         "upload it there with Add file, and it shows up for everyone once it is merged.")
+            done.cancel("Close")
+            done.action("Open the games folder", lambda: self.open_link(gamelist.CONTRIBUTE))
+            done.open()
+
+        modal.action("Save…", save)
+        modal.open()
 
     def set_game_fps(self, controller, package, fps):
         profiles.set_game(package, fps=fps)
