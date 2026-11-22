@@ -28,22 +28,12 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 
 ## Bigger work
 
-### 1. ARM games that crash
-Some 64-bit ARM games (BitLife and other Unity games) crash a few seconds in, because Google's ARM translator
-can't hand a memory fault in a copy routine back to the game. A fix has been prototyped: patch a copy of the
-Android 16 system image so the game's own copy routines run instead. It worked on a test program, not yet on a
-real game, and the code has to be rebuilt.
-- Patch the image on first use, keep the patched copy, and turn it on per instance
-- Cover the other routines the translator replaces, and Android 15 and 11
-- Done when BitLife and two other Unity games run for 30 minutes
-
-### 2. A shared game list
-A public GitHub repository with one entry per game: which Android version to use, whether it needs the ARM fix,
-a keymap, macros, an FPS cap, and whether it works, partly works or doesn't. Androidbox reads the list from
+### 1. A shared game list
+A public GitHub repository with one entry per game: which Android version to use, a keymap, macros, an FPS cap, and whether it works, partly works or doesn't. Androidbox reads the list from
 GitHub, so no new server is involved. Anyone can add a game with a pull request, and setting up a game becomes
 one click.
 
-### 3. A helper app inside Android
+### 2. A helper app inside Android
 A small open-source app, installed only if you choose to, that makes these possible:
 - Typing non-Latin text and emoji (Persian, Arabic, CJK), which Android's `input text` cannot do
 - Clipboard shared both ways with Windows
@@ -52,30 +42,30 @@ A small open-source app, installed only if you choose to, that makes these possi
 - Memory use per app on the Apps page
 - Faster and more reliable screen text for Claude
 
-### 4. Several instances together
+### 3. Several instances together
 - Clone an instance
 - See instances in a grid, side by side
 - Send the same keys and taps to several instances at once
 - Limit each instance's CPU and memory use
 - Start and stop groups of instances
 
-### 5. Scripts on top of macros
+### 4. Scripts on top of macros
 Macros stay as they are. For people who outgrow them: a script runtime with picture search, reading text off
 the screen ("tap Collect"), variables and schedules, across several instances. A recorded macro can be turned
 into a script to start from. Scripts play by the game's rules; nothing here hides the emulator from a game.
 
-### 6. Testing apps from the command line and CI
+### 5. Testing apps from the command line and CI
 - An `androidbox` command: create, start, install, run, screenshot and record, with no window
 - A GitHub Action that starts an instance on a runner and runs a test script or a Claude session
 - Run a test script repeatedly, with a report of screenshots and video
 - More Claude tools: clipboard and permission control
 
-### 7. macOS on Apple Silicon
-On an M-series Mac the Android Emulator runs ARM apps without a translator, so the crashes in item 1 don't
-happen there. Most of the platform work done for Linux carries over. It needs an arm64 build, a notarised
+### 6. macOS on Apple Silicon
+On an M-series Mac the Android Emulator runs ARM apps natively instead of through a translator, so ARM-only
+games run faster. Most of the platform work done for Linux carries over. It needs an arm64 build, a notarised
 download and testing on a real Mac.
 
-### 8. Play from your phone or browser
+### 7. Play from your phone or browser
 Watch and control an instance from another device on your network: the screen streamed over WebRTC, touch and
 controller input sent back. Local network only unless you set it up otherwise.
 
