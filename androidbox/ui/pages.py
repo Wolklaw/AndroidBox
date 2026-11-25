@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFra
                                QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
 from .. import VERSION, claude, diagnostics, gamelist, installer, instances, keymap, macros, native, paths, profiles, system, vision
-from .controller import plural
+from .controller import plural, volume_text
 from .inspector import Inspector
 from .phone import PhoneView
 from . import theme
@@ -639,8 +639,11 @@ class SettingsPage(Page):
         self.add(card(label("Extras", "Section"),
                       setting("Eco mode", "Draws fewer frames and lowers Android's CPU priority. Good for "
                                           "idle games running in the background.", eco), divider(),
-                      setting("Mute", "Silences this instance's sound, so a game in the background stays quiet.",
-                              muted), divider(),
+                      setting("Mute", "Silences this instance's media and notification sounds, so a game in the "
+                                     f"background stays quiet. {volume_text(controller.volume)}."
+                              if controller.on and controller.volume else
+                              "Silences this instance's media and notification sounds, so a game in the "
+                              "background stays quiet.", muted), divider(),
                       setting("Start with Androidbox", "Starts this instance whenever Androidbox opens, including "
                                                        f"when {system.SIGN_IN_NAME} starts it.", autostart), divider(),
                       setting("Webcam", "Lets Android apps use your PC's webcam as their camera. Applies the "

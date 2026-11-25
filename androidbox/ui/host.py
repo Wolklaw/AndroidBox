@@ -38,10 +38,16 @@ class ScreenActions:
         self.screen.refresh_inspector(self.active())
 
     def volume_up(self):
-        self.send_key("AudioVolumeUp")
+        if self.live():
+            self.live().change_volume("AudioVolumeUp")
 
     def volume_down(self):
-        self.send_key("AudioVolumeDown")
+        if self.live():
+            self.live().change_volume("AudioVolumeDown")
+
+    def show_volume(self):
+        if self.live():
+            self.live().refresh_volume(announce=True)
 
     def toggle_inspector(self):
         self.set_pref("inspector", not self.prefs["inspector"])

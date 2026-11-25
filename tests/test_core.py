@@ -1312,3 +1312,22 @@ class GameList(unittest.TestCase):
         app.processEvents()
         self.assertEqual(buttons(), ["Turn it on"])
         app.processEvents()
+
+
+def test_stream_state_reads_volume_and_mute_from_dumpsys():
+    modern = ("- STREAM_VOICE_CALL:\n   Muted: false\n   Max: 5\n- STREAM_MUSIC:\n   Muted: true\n"
+              "   Muted Internally: false\n   Min: 0\n   Max: 25\n   streamVolume:7\n"
+              "   Current: 2 (speaker): 7, 40000000 (default): 20\n- STREAM_ALARM:\n   Muted: false\n")
+    assert emulator.stream_state(modern, "STREAM_MUSIC") == {"muted": True, "level": 7, "max": 25}
+    older = "- STREAM_MUSIC:\n   Muted: false\n   Max: 15\n   Current: 4 (headset): 3, 2 (speaker): 9\n"
+    assert emulator.stream_state(older, "STREAM_MUSIC") == {"muted": False, "level": 9, "max": 15}
+    legacy = "- STREAM_MUSIC:\n   Mute count: 0\n   Current: 2: 11, 4: 15\n"
+    assert emulator.stream_state(legacy, "STREAM_MUSIC") == {"muted": False, "level": 11, "max": None}
+    assert emulator.stream_state("", "STREAM_MUSIC") is None
+
+
+def test_volume_text_reads_like_the_toolbar_shows_it():
+    from androidbox.ui.controller import volume_text
+    assert volume_text({"muted": False, "level": 5, "max": 15}) == "Volume 5/15"
+    assert volume_text({"muted": True, "level": 5, "max": 15}) == "Volume 5/15, muted"
+    assert volume_text(None) == "Volume unknown"

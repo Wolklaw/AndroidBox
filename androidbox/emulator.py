@@ -65,6 +65,31 @@ def hardware_acceleration():
     return code == 0, lines[-2] if len(lines) > 1 else output
 
 
+
+def stream_state(dump, stream):
+    lines = [line.strip() for line in dump.splitlines()]
+    if f"- {stream}:" not in lines:
+        return None
+    block = []
+    for line in lines[lines.index(f"- {stream}:") + 1:]:
+        if line.startswith("- STREAM_") or not line:
+            break
+        block.append(line)
+    fields = {}
+    for line in block:
+        key, _, value = line.partition(":")
+        fields.setdefault(key.strip(), value.strip())
+    numbers = lambda text: [int(number) for number in re.findall(r"\d+", text)]
+    top = numbers(fields.get("Max", ""))
+    level = numbers(fields.get("streamVolume", ""))
+    if not level:
+        current = re.findall(r"(\w+)(?: \(([^)]*)\))?: (\d+)", fields.get("Current", ""))
+        speaker = [int(value) for _, device, value in current if device == "speaker"]
+        level = speaker or [int(value) for *_, value in current[:1]]
+    return {"muted": fields.get("Muted") == "true", "level": level[0] if level else None,
+            "max": top[0] if top else None}
+
+
 class Emulator:
     def __init__(self, instance):
         self.instance = instance
@@ -479,17 +504,24 @@ class Emulator:
         code, output = self.adb("uninstall", package, timeout=120)
         return code == 0 and "Success" in output
 
+    def audio(self):
+        code, output = self.adb("shell", "dumpsys", "audio", timeout=10)
+        return stream_state(output, "STREAM_MUSIC") if code == 0 else None
+
     def music_muted(self):
-        code, output = self.adb("shell", "dumpsys audio | grep -A1 'STREAM_MUSIC:'", timeout=10)
-        lines = [line.strip() for line in output.splitlines()]
-        if code != 0 or "- STREAM_MUSIC:" not in lines:
-            return None
-        return lines[lines.index("- STREAM_MUSIC:") + 1] == "Muted: true"
+        state = self.audio()
+        return state["muted"] if state else None
 
     def set_music_muted(self, muted):
-        # Android ignores volume changes from adb on this image, but its mute key toggles the stream games play on
+        if muted:
+            self.set_quiet_notifications(True)
         if bool(self.music_muted()) != muted:
             self.adb("shell", "input", "keyevent", "KEYCODE_VOLUME_MUTE", timeout=10)
+        if not muted:
+            self.set_quiet_notifications(False)
+
+    def set_quiet_notifications(self, quiet):
+        self.adb("shell", "cmd", "notification", "set_dnd", "on" if quiet else "off", timeout=10)
 
     def listing(self, folder):
         quoted = "'" + folder.replace("'", "'\\''") + "'"
