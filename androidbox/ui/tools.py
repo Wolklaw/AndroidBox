@@ -1,6 +1,7 @@
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QMenu, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
+from .controller import volume_text
 from .theme import COLORS, ICONS
 from .widgets import ToolButton, styled
 
@@ -14,7 +15,7 @@ MORE = [
     ("Set location…", "choose_location", None, True), ("Shake", "shake", None, True), None,
     ("Eco mode: lower FPS and CPU use", "toggle_eco", "eco", False),
     ("Sync input to every running instance", "toggle_sync", "sync", False),
-    ("Mute this instance", "toggle_mute", "mute", True),
+    ("Mute this instance: media and notifications", "toggle_mute", "mute", True),
     ("Keep Androidbox on top of other windows", "toggle_pin", "pin", False), None,
     ("Search everything…    Ctrl+K", "open_palette", None, False),
 ]
@@ -30,6 +31,7 @@ class ToolRail(QWidget):
         self.buttons = {}
         self.live = False
         self.states = {}
+        self.volume = None
         groups = [
             [("back", "Back", lambda: host.send_key("GoBack")),
              ("home", "Home", lambda: host.send_key("GoHome")),
@@ -107,6 +109,7 @@ class ToolRail(QWidget):
             "pin": prefs["always_on_top"],
             "info": prefs["inspector"],
         }
+        self.volume = volume_text(controller.volume) if self.live and controller.volume else None
         for name, checked in self.states.items():
             if name in self.buttons:
                 self.buttons[name].setChecked(checked)
@@ -116,6 +119,8 @@ class ToolRail(QWidget):
 
     def more_menu(self):
         menu = QMenu(self)
+        if self.volume:
+            menu.addAction(self.volume, self.host.show_volume)
         for item in MORE:
             if item is None:
                 menu.addSeparator()

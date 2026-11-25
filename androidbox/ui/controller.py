@@ -32,6 +32,13 @@ def file_stamp(name):
     return f"{re.sub(r'[^A-Za-z0-9 _-]', '', name) or 'Android'} {datetime.now():%Y-%m-%d %H-%M-%S}"
 
 
+def volume_text(state):
+    if not state or state["level"] is None:
+        return "Volume unknown"
+    level = f"{state['level']}/{state['max']}" if state["max"] else str(state["level"])
+    return f"Volume {level}, muted" if state["muted"] else f"Volume {level}"
+
+
 def plural(count, word):
     return f"{count} {word}" if count == 1 else f"{count} {word}s"
 
@@ -77,6 +84,7 @@ class Controller(QObject):
         self.thumb = None
         self.thumbing = False
         self.relaunched = 0.0
+        self.volume = None
         self.timer = QTimer(self, interval=1500, timeout=self.poll)
         self.timer.start()
         self.video_timer = QTimer(self, singleShot=True, timeout=self.video_finished)
@@ -253,7 +261,9 @@ class Controller(QObject):
         if self.instance.network:
             background(lambda: self.emulator.set_network(self.instance.network))
         if self.instance.muted:
-            background(lambda: self.apply_mute(True))
+            background(lambda: self.apply_mute(True), lambda _: self.refresh_volume())
+        else:
+            self.refresh_volume()
         files, self.pending = self.pending, []
         if files:
             self.open_files(files)
@@ -543,6 +553,23 @@ class Controller(QObject):
         # Runs off the main thread, since it waits on adb
         self.emulator.set_music_muted(muted)
 
+    def refresh_volume(self, announce=False):
+        if not self.on:
+            return
+
+        def read(state):
+            if state != self.volume:
+                self.volume = state
+                self.changed.emit()
+            if announce:
+                self.notify.emit(volume_text(state), "text")
+        background(self.emulator.audio, read, lambda _: None)
+
+    def change_volume(self, key):
+        if self.bridge:
+            self.bridge.key(key)
+            QTimer.singleShot(400, lambda: self.refresh_volume(announce=True))
+
     def set_network(self, profile):
         self.instance.network = profile
         self.save()
@@ -557,13 +584,13 @@ class Controller(QObject):
         self.instance.muted = muted
         self.save()
         if self.on:
-            background(lambda: self.apply_mute(muted))
+            background(lambda: self.apply_mute(muted), lambda _: self.refresh_volume())
         self.changed.emit()
 
     def hush(self, quiet):
         # The boss key silences every instance without changing which of them are muted for good
         if self.on and not self.instance.muted:
-            background(lambda: self.apply_mute(quiet))
+            background(lambda: self.apply_mute(quiet), lambda _: self.refresh_volume())
 
     def set_block_ads(self, enabled):
         self.instance.block_ads = enabled
