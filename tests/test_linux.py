@@ -128,8 +128,8 @@ class Packages(unittest.TestCase):
                 self.assertFalse(installer.runs_here(self.archive(other, "x64")))
                 self.assertFalse(installer.runs_here(self.archive(system_name, "aarch64")))
 
-    def test_the_old_android_4_1_emulator_is_offered_only_where_its_build_is_known(self):
-        self.assertEqual(installer.LEGACY_SUPPORTED, native.WINDOWS)
+    def test_the_old_android_4_1_emulator_is_the_build_for_this_system(self):
+        self.assertIn(f"emulator-{installer.HOST_OS}_x64-7033400.zip", installer.LEGACY_EMULATOR_URL)
 
     @unittest.skipIf(sys.platform == "win32", "permissions only mean something on Linux")
     def test_unpacking_keeps_the_executable_bit_and_symlinks(self):

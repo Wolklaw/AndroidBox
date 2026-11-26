@@ -3,6 +3,7 @@
 What is planned for Androidbox, roughly in order. Nothing here is a promise or a date.
 
 ## Done recently
+- Linux: the Android 4.1 image for OUYA and GameStick games, on the Linux build of the older emulator
 - Game list: a shared list on GitHub of how well games run, with a frame rate and controls to start from. Browse
   it from the sidebar, see it on the Apps page, get a game's setup offered the first time you open it, and share
   your own setup as a file for a pull request or a game report
@@ -21,8 +22,7 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 ## Next
 - Check the Linux build on a real SparkOS desktop: start an instance, controllers, the tray and desktop shortcuts, the
   Graphics card setting under Wayland
-- Linux: the Android 4.1 image (needs the older emulator's Linux build checked), and global shortcuts through the
-  desktop's GlobalShortcuts portal
+- Linux: global shortcuts through the desktop's GlobalShortcuts portal
 - Check macro smart steps on a running instance and tune how strict Strict, Normal and Loose are, and how fast
   the picture search is on a busy game screen
 - Check every new feature on a running instance, on Android 16 and on the Android 4.1 image

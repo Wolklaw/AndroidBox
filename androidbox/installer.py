@@ -33,11 +33,14 @@ ARCH_FAMILY = {"x86_64": "x86_64", "x86": "x86", "armeabi-v7a": "arm", "arm64-v8
 # still offering the gRPC screen and input service Androidbox is built on, and it sits beside the current
 # emulator rather than replacing it.
 LEGACY_EMULATOR = Path("emulator-legacy")
-LEGACY_EMULATOR_URL = REPOSITORY + "emulator-windows_x64-7033400.zip"
-LEGACY_EMULATOR_SIZE = 320335172
-LEGACY_EMULATOR_SHA1 = "96bdb19ff3728586432fafac6220339d2d30f3c2"
-# Only the Windows build of that emulator is known and checked. The Android 4.1 image waits for a Linux one
-LEGACY_SUPPORTED = native.WINDOWS
+if native.WINDOWS:
+    LEGACY_EMULATOR_URL = REPOSITORY + "emulator-windows_x64-7033400.zip"
+    LEGACY_EMULATOR_SIZE = 320335172
+    LEGACY_EMULATOR_SHA1 = "96bdb19ff3728586432fafac6220339d2d30f3c2"
+else:
+    LEGACY_EMULATOR_URL = REPOSITORY + "emulator-linux_x64-7033400.zip"
+    LEGACY_EMULATOR_SIZE = 266293111
+    LEGACY_EMULATOR_SHA1 = "3cec9833ab787ed496f727a9e152332ef2b4b00c"
 # The name Google's repository files give this system, and the processor they have to be for
 HOST_OS = "windows" if native.WINDOWS else "linux"
 HOST_ARCH = "aarch64" if platform.machine().lower() in ("aarch64", "arm64") else "x64"

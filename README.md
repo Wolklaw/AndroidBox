@@ -120,8 +120,6 @@ as on Windows.
 What is different from Windows:
 - **Global shortcuts and the boss key don't work.** A Linux desktop doesn't let a program listen for keys while
   another program has the keyboard. Shortcuts inside Androidbox's own windows work as before.
-- **The Android 4.1 image (OUYA and GameStick) isn't offered yet.** It needs an older emulator build, and only the
-  Windows one has been checked.
 - **No self-update.** SparkOS brings new versions with its own updates, and Androidbox only tells you about one if
   you turn on **Check for updates**.
 - **Eco mode can lower the emulator's priority but not raise it back** until the instance restarts: Linux lets
