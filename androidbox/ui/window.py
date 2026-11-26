@@ -41,7 +41,8 @@ PAGES = {
 }
 
 GLOBAL_PAGES = ("instances", "profile", "gamelist")
-HEADER_STATS_MIN_WIDTH = 1180
+# The header detail (a package name, say) is cut down to fit, but never below this or past the longer one
+HEADER_DETAIL_WIDTHS = (120, 240)
 
 UPDATE_CHECK_HOURS = 6
 STATES = {"on": "Running", "booting": "Starting…", "stopping": "Shutting down…", "crashed": "Stopped unexpectedly"}
@@ -175,7 +176,7 @@ class MainWindow(QMainWindow, ScreenActions):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "header_stats"):
-            self.update_stats()
+            self.fit_header()
 
     def showEvent(self, event):
         style_title_bar(self)
@@ -229,6 +230,9 @@ class MainWindow(QMainWindow, ScreenActions):
     def build_header(self):
         self.header = QFrame()
         self.header.setObjectName("Header")
+        self.header_text = ("", "")
+        # The header's width, not the window's, decides what fits in it
+        self.header.installEventFilter(self)
         self.header.setFixedHeight(68)
         layout = QHBoxLayout(self.header)
         layout.setContentsMargins(28, 0, 24, 0)
@@ -432,20 +436,54 @@ class MainWindow(QMainWindow, ScreenActions):
             title = controller.instance.name
             detail = controller.package if self.page == "screen" and controller.on and controller.package else \
                 f"{controller.instance.android}  ·  {STATE_WORDS.get(controller.state, 'Off')}"
-        self.header_title.setText(title)
-        # A long package name must not push the tabs around
-        self.header_detail.setText(self.header_detail.fontMetrics().elidedText(detail, Qt.TextElideMode.ElideMiddle,
-                                                                               240))
+        self.header_text = (title, detail)
+        self.header_title.setToolTip(title)
         self.header_detail.setToolTip(detail)
         self.update_stats()
 
     def update_stats(self):
         controller = self.active()
         usage = controller.usage if controller and controller.on else None
-        # The sidebar card already says it, so the header only does when there is room
-        self.header_stats.setVisible(bool(usage) and self.width() >= HEADER_STATS_MIN_WIDTH)
         if usage:
             self.header_stats.setText(f"{usage[0]:.0f}% CPU  ·  {usage[1]:.1f} GB")
+        self.header_stats.setProperty("wanted", bool(usage))
+        self.fit_header()
+
+    def fit_header(self):
+        """Gives the title, the detail and the CPU chip only the room the tabs and the profile leave them. A long
+        package name, a long instance name or a wider font (Linux has no Segoe UI) must never squeeze the tabs."""
+        layout = self.header.layout()
+        gap = layout.spacing()
+        margins = layout.contentsMargins()
+        room = self.header.width() - margins.left() - margins.right() - gap
+        shortest, longest = HEADER_DETAIL_WIDTHS
+        if not self.tabs.isHidden():
+            tabs = self.nav_buttons.values()
+            spare = room - self.profile_chip.full_width() - shortest
+            for tab in tabs:
+                tab.set_tight(False)
+            needed = self.tabs.sizeHint().width() + gap
+            for tab in tabs:
+                tab.set_tight(spare < needed)
+            self.tabs.layout().invalidate()
+            room -= self.tabs.sizeHint().width() + gap
+        # In a narrow window the profile shows just its badge; its name is in the menu it opens
+        self.profile_chip.set_compact(room - self.profile_chip.full_width() < shortest)
+        room -= self.profile_chip.width()
+        title, detail = self.header_text
+        detail_width = self.header_detail.fontMetrics().horizontalAdvance(detail)
+        title_width = self.header_title.fontMetrics().horizontalAdvance(title)
+        wanted = max(title_width, min(detail_width, longest))
+        chip = self.header_stats.sizeHint().width() + gap
+        # The sidebar card already shows the CPU and memory, so the header chip is the first thing to go
+        stats = bool(self.header_stats.property("wanted")) and room - chip >= wanted
+        self.header_stats.setVisible(stats)
+        if stats:
+            room -= chip
+        room = max(room, shortest)
+        self.header_title.setText(self.header_title.fontMetrics().elidedText(title, Qt.TextElideMode.ElideRight, room))
+        self.header_detail.setText(self.header_detail.fontMetrics().elidedText(
+            detail, Qt.TextElideMode.ElideMiddle, min(room, longest)))
 
     def controller_changed(self, controller):
         item = self.instance_buttons.get(controller.instance.id)
@@ -886,9 +924,8 @@ class MainWindow(QMainWindow, ScreenActions):
         android = QComboBox()
         android.addItem("Android 16 (recommended)", "36")
         android.addItem("Android 11 (runs older 32-bit games)", "30")
-        if installer.LEGACY_SUPPORTED:
-            android.addItem("Android 4.1 — for OUYA/GameStick games (experimental, slow, no Play Store)",
-                            installer.LEGACY_API)
+        android.addItem("Android 4.1 — for OUYA/GameStick games (experimental, slow, no Play Store)",
+                        installer.LEGACY_API)
         storage = QComboBox()
         for size in instances.DISK_SIZES:
             storage.addItem(f"{size} GB" + ("  (big games need more)" if size == instances.DISK_SIZES[0] else ""), size)
@@ -1052,6 +1089,10 @@ class MainWindow(QMainWindow, ScreenActions):
             app.installEventFilter(self) if listening else app.removeEventFilter(self)
 
     def eventFilter(self, watched, event):
+        if watched is getattr(self, "header", None):
+            if event.type() == QEvent.Type.Resize:
+                self.fit_header()
+            return False
         # Up, up, down, down, left, right, left, right, B, A, on the instances page, where no game is listening
         if event.type() == QEvent.Type.KeyPress and self.page == "instances" and self.isActiveWindow():
             key = event.key()

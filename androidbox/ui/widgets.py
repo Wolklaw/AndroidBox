@@ -227,11 +227,19 @@ class TabButton(SidebarButton):
         super().__init__(text)
         self.setFixedHeight(36)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        # Less room around the name, for a narrow window
+        self.tight = False
         self.retheme()
 
+    def set_tight(self, tight):
+        if tight != self.tight:
+            self.tight = tight
+            self.retheme()
+
     def retheme(self):
-        # The two themes use different fonts, so the tab is measured again
-        self.setFixedWidth(text_width(self.text(), 14) + 36)
+        # The two themes use different fonts, so the tab is measured again. The one you're on is in the strong font
+        self.setFixedWidth(max(text_width(self.text(), 14), QFontMetrics(text_font(14, strong=True))
+                               .horizontalAdvance(self.text())) + (20 if self.tight else 36))
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -356,6 +364,8 @@ class ProfileButton(QAbstractButton):
         self.setFixedHeight(36)
         self.tag = ""
         self.hovered = False
+        # Just the badge and the arrow, for a header with no room for the name
+        self.compact = False
 
     def show_profile(self, name, tag):
         self.setText(name)
@@ -363,8 +373,17 @@ class ProfileButton(QAbstractButton):
         self.retheme()
         self.update()
 
+    def full_width(self):
+        return text_width(self.text()) + 78
+
+    def set_compact(self, compact):
+        if compact != self.compact:
+            self.compact = compact
+            self.retheme()
+            self.update()
+
     def retheme(self):
-        self.setFixedWidth(text_width(self.text()) + 78)
+        self.setFixedWidth(62 if self.compact else self.full_width())
 
     def enterEvent(self, event):
         self.hovered = True
@@ -388,9 +407,10 @@ class ProfileButton(QAbstractButton):
         painter.setFont(text_font(11, strong=True))
         painter.drawText(tile, Qt.AlignmentFlag.AlignCenter, self.tag)
         painter.setPen(QColor(COLORS["bright"] if self.hovered else COLORS["text"]))
-        painter.setFont(text_font(14))
-        painter.drawText(QRectF(38, 0, self.width() - 62, self.height()),
-                         Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())
+        if not self.compact:
+            painter.setFont(text_font(14))
+            painter.drawText(QRectF(38, 0, self.width() - 62, self.height()),
+                             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())
         painter.setPen(QColor(COLORS["muted"]))
         painter.setFont(icon_font(10))
         painter.drawText(QRectF(self.width() - 26, 0, 20, self.height()), Qt.AlignmentFlag.AlignCenter,
