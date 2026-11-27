@@ -476,6 +476,11 @@ class Emulator:
     def launch(self, package):
         self.adb("shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1", timeout=20)
 
+    def crash_log(self):
+        """Android's record of apps that crashed or stopped responding, for the game list's drafts"""
+        code, output = self.adb("shell", "logcat", "-b", "events", "-d", "am_crash:I", "am_anr:I", "'*:S'", timeout=15)
+        return output if code == 0 else ""
+
     def apps(self):
         code, output = self.adb("shell", "pm", "list", "packages", "-3", timeout=20)
         if code != 0:

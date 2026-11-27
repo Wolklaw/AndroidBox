@@ -5,15 +5,26 @@ and shows it on its **Game list** page and next to each game on the **Apps** pag
 and controls) can be copied into your profile with **Use setup**, and Androidbox offers it the first time you open
 a game you haven't set up yourself. Nothing is sent back, and the list can be turned off in Androidbox's settings.
 
+## Let Androidbox draft entries as you play
+
+Turn on **Draft game list entries as I play** in Androidbox's settings (it is off unless you do). Androidbox then
+notes, on your PC only, how long each game you installed is in front and whether Android closes it with a crash or
+an "isn't responding" dialog. Once you've played a game for about 10 minutes, and the list doesn't say how it runs on
+your Android version, Androidbox offers its entry with how it runs and a note filled in from what it saw, plus your
+frame rate and controls. The same drafts wait on the **Game list** page under **Played here, not on the list**.
+
+Check the draft, then **Send on GitHub**: GitHub's page for adding a file opens with the entry in it, and committing
+it there opens the pull request from your own GitHub account. Nothing is sent unless you do that.
+
 ## Add a game
 
 1. In Androidbox, set the game up the way that works: its frame rate on the **Apps** page and its controls with
    Ctrl+Shift+E.
 2. On the **Apps** page, open the game's **⋯** menu and choose **Share to the game list…**. Say how well it runs and
-   anything worth knowing, and save the file. It is named after the game's package, such as
-   `com.example.game.json`.
-3. Add the file to this folder in a pull request. GitHub's **Add file → Upload files** on this folder works if you'd
-   rather not use git.
+   anything worth knowing.
+3. Choose **Send on GitHub** to open GitHub with the file filled in, and commit it there to open a pull request. Or
+   choose **Save file…** and add the file to this folder in a pull request yourself; it is named after the game's
+   package, such as `com.example.game.json`.
 
 A check runs on the pull request. Once it is merged, `index.json` is rewritten by itself and Androidbox picks
 the game up within a day. To check a file on your own PC first, run `python tools/build_games.py --entries`.
