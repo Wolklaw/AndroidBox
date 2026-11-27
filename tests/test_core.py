@@ -1097,6 +1097,7 @@ class GameList(unittest.TestCase):
         from androidbox import gamelist
         self.gamelist = gamelist
         gamelist.CACHE.unlink(missing_ok=True)
+        gamelist.PLAYED.unlink(missing_ok=True)
         gamelist.cache.clear()
 
     def entry(self, **changes):
@@ -1227,6 +1228,67 @@ class GameList(unittest.TestCase):
         self.assertEqual(calls[0][-1], "'market://details?id=com.example.game'")
         self.assertIn("android.intent.action.VIEW", calls[0])
 
+    def test_crashes_in_androids_event_log_are_found_for_one_game(self):
+        log = ("--------- beginning of events\n"
+               "11-27 10:00:00.000  1234  1250 I am_crash: [5678,0,com.example.game,953794116,"
+               "java.lang.RuntimeException,boom,Game.java,12,0]\n"
+               "11-27 10:01:00.000  1234  1250 I am_anr  : [0,5679,com.example.game,953794116,Input dispatching]\n"
+               "11-27 10:02:00.000  1234  1250 I am_crash: [5680,0,com.example.game.helper,1,x,y,z,1,0]\n"
+               "11-27 10:03:00.000  1234  1250 I am_proc_start: [0,5681,10100,com.example.game,activity]\n")
+        found = self.gamelist.crash_lines(log, "com.example.game")
+        self.assertEqual(len(found), 2)
+        self.assertEqual(self.gamelist.crash_lines(log, "com.other"), [])
+
+    def test_play_is_added_up_and_a_crash_counts_once(self):
+        gamelist = self.gamelist
+        crash = "11-27 10:00:00.000 I am_crash: [5678,0,com.example.game,1,x,y,z,1,0]"
+        gamelist.record_play("com.example.game", "36", 120, [crash])
+        record = gamelist.record_play("com.example.game", "36", 200.4, [crash])
+        self.assertEqual((record["seconds"], record["sessions"], record["crashes"]), (320, 2, 1))
+        self.assertIsNone(gamelist.play_record("com.example.game", "35"), "Android versions mixed up")
+
+    def test_a_game_is_ready_to_report_after_a_fair_run_and_only_until_done(self):
+        gamelist = self.gamelist
+        gamelist.record_play("com.example.game", "36", gamelist.REPORT_AFTER - 60)
+        self.assertEqual(gamelist.to_report(), [])
+        gamelist.record_play("com.example.game", "36", 60)
+        self.assertEqual([record["package"] for record in gamelist.to_report("36")], ["com.example.game"])
+        self.assertEqual(gamelist.to_report("35"), [])
+        gamelist.mark("com.example.game", "36", "done")
+        self.assertEqual(gamelist.to_report(), [])
+
+        # A game that dies on start is worth a report after a few tries
+        for number in range(3):
+            gamelist.record_play("com.example.crash", "36", 5, [f"I am_crash: [{number},0,com.example.crash,1]"])
+        record = gamelist.play_record("com.example.crash", "36")
+        self.assertTrue(gamelist.worth_reporting(record))
+        self.assertEqual(gamelist.guess_works(record), "no")
+        self.assertEqual(gamelist.guess_notes(record), "Closes by itself as soon as it opens.")
+
+    def test_a_game_the_list_already_covers_on_this_android_isnt_drafted(self):
+        gamelist = self.gamelist
+        gamelist.refresh(opener=self.opener(gamelist.build([self.entry(android="36")])))
+        gamelist.record_play("com.example.game", "36", gamelist.REPORT_AFTER)
+        gamelist.record_play("com.example.game", "35", gamelist.REPORT_AFTER)
+        self.assertEqual([record["api"] for record in gamelist.to_report()], ["35"])
+
+    def test_a_draft_guesses_from_what_was_seen_and_opens_as_a_new_file_on_github(self):
+        from urllib.parse import parse_qs, urlparse
+        gamelist = self.gamelist
+        self.assertEqual(gamelist.guess_works({"seconds": 900}), "yes")
+        self.assertEqual(gamelist.guess_notes({"seconds": 900}), "")
+        self.assertEqual(gamelist.guess_works({"seconds": 900, "crashes": 2}), "partly")
+        self.assertEqual(gamelist.guess_notes({"seconds": 900, "crashes": 2}), "Closed by itself 2 times while playing.")
+        self.assertEqual(gamelist.duration(20), "under a minute")
+        self.assertEqual(gamelist.duration(25 * 60), "25 minutes")
+        self.assertEqual(gamelist.duration(3 * 3600), "3 hours")
+        entry = gamelist.entry_for("com.example.game", "Example & Co", "yes", "50% faster?", android="36")
+        link = urlparse(gamelist.propose_link(entry))
+        self.assertEqual(link.path, "/Wolklaw/Androidbox/new/main/games")
+        query = parse_qs(link.query)
+        self.assertEqual(query["filename"], ["com.example.game.json"])
+        self.assertEqual(json.loads(query["value"][0]), entry)
+
     def offer_window(self, **prefs):
         from types import SimpleNamespace as N
         offers = []
@@ -1266,6 +1328,44 @@ class GameList(unittest.TestCase):
         MainWindow.offer_game_setup(window, N(package="com.example.game"))
         self.assertEqual(window.offers, [], "offered with the game list turned off")
 
+    def test_playing_a_game_with_drafts_on_notes_its_time_and_offers_its_entry_once(self):
+        try:
+            from androidbox.ui.window import MainWindow
+        except ImportError:
+            self.skipTest("Qt isn't installed")
+        from types import SimpleNamespace as N
+        from unittest import mock
+        gamelist = self.gamelist
+        crash = "11-27 10:00:00.000 I am_crash: [5678,0,com.example.game,1,x,y,z,1,0]"
+        emulator_ = N(apps=lambda: ["com.example.game"], crash_log=lambda: crash)
+        controller = N(instance=N(id="a", api="36"), state="on", on=True, package=None, apps=None, emulator=emulator_)
+        window = self.offer_window(game_list_drafts=True)
+        window.sessions = {}
+        window.offer.isVisible = lambda: False
+        window.run = lambda work, then=None, failed=None: then(work())
+        window.track_play = lambda c: MainWindow.track_play(window, c)
+        window.end_play = lambda c, *rest: MainWindow.end_play(window, c, *rest)
+        clock = [1000.0]
+        with mock.patch("time.monotonic", lambda: clock[0]):
+            for package in ("com.example.game", "com.android.launcher3", "com.example.game", None):
+                controller.package = package
+                window.track_play(controller)
+                clock[0] += gamelist.REPORT_AFTER / 2
+        record = gamelist.play_record("com.example.game", "36")
+        self.assertEqual((record["seconds"], record["sessions"], record["crashes"]), (gamelist.REPORT_AFTER, 2, 1))
+        self.assertIsNone(gamelist.play_record("com.android.launcher3", "36"), "noted an app Android came with")
+        self.assertEqual(len(window.offers), 1)
+        self.assertIn("doesn't say how", window.offers[0])
+
+        # Off, nothing is noted
+        gamelist.PLAYED.unlink()
+        window.prefs["game_list_drafts"] = False
+        controller.package = "com.example.game"
+        window.track_play(controller)
+        controller.package = None
+        window.track_play(controller)
+        self.assertEqual(gamelist.played(), {})
+
     def test_the_game_list_page_filters_and_offers_what_fits(self):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         try:
@@ -1280,7 +1380,9 @@ class GameList(unittest.TestCase):
                                                                      works="no")])
         self.gamelist.refresh(opener=self.opener(text))
         controller = N(on=True, apps=["com.example.game"], instance=N(name="Main", api="36"))
-        host = N(page="gamelist", active=lambda: controller, run=lambda *a, **k: None, prefs={"game_list": True})
+        host = N(page="gamelist", active=lambda: controller, run=lambda *a, **k: None,
+                 prefs={"game_list": True, "game_list_drafts": True})
+        self.gamelist.record_play("com.example.played", "36", self.gamelist.REPORT_AFTER, ["I am_crash: [1,0,com.example.played,1]"])
         page = pages.GameListPage(host)
         page.refresh()
         page.show()
@@ -1292,6 +1394,9 @@ class GameList(unittest.TestCase):
             return [button.text() for button in page.findChildren(QPushButton) if button.isVisibleTo(page)]
 
         self.assertIn("Games · 2", shown())
+        self.assertIn("Played here, not on the list · 1", shown())
+        self.assertIn("Played 10 minutes on Android 16  ·  1 crash", shown())
+        self.assertIn("Draft it…", buttons())
         self.assertIn("Use setup", buttons())
         self.assertIn("Open", buttons())
         # A game that doesn't work isn't sent to Google Play

@@ -123,6 +123,8 @@ class MainWindow(QMainWindow, ScreenActions):
         root.addWidget(main, 1)
         self.toaster = Toast(central)
         self.offer = Offer(central)
+        # The game in front of each instance and since when, while drafting game list entries is on
+        self.sessions = {}
         self.fault = None
         self.fault_parts = (central, main)
         self.stack.currentChanged.connect(lambda _: self.fault and self.fault.update())
@@ -500,6 +502,8 @@ class MainWindow(QMainWindow, ScreenActions):
             detail, Qt.TextElideMode.ElideMiddle, min(room, longest)))
 
     def controller_changed(self, controller):
+        if controller.state != "on":
+            self.track_play(controller)
         item = self.instance_buttons.get(controller.instance.id)
         if item:
             item.set_state(controller.state)
@@ -518,6 +522,7 @@ class MainWindow(QMainWindow, ScreenActions):
         self.update_mirrors()
 
     def app_changed(self, controller):
+        self.track_play(controller)
         self.offer_game_setup(controller)
         if controller is self.active():
             self.update_header()
@@ -555,6 +560,9 @@ class MainWindow(QMainWindow, ScreenActions):
             claude.enable() if value else claude.disable()
         if key == "game_list":
             self.game_list_nav.setVisible(value)
+        if key in ("game_list", "game_list_drafts"):
+            for controller in self.controllers.values():
+                self.track_play(controller)
         if key == "sync_input":
             self.update_mirrors()
         if key == "close_to_tray":
@@ -1648,38 +1656,107 @@ class MainWindow(QMainWindow, ScreenActions):
         else:
             apply()
 
-    def share_to_game_list(self, controller, package, name):
+    def track_play(self, controller):
+        # With drafts on, a game's time in front is noted when it leaves, with any crash Android logged meanwhile
+        key = controller.instance.id
+        drafting = self.prefs["game_list"] and self.prefs["game_list_drafts"]
+        package = controller.package if controller.state == "on" and drafting else None
+        current = self.sessions.get(key)
+        if current and current[0] == package:
+            return
+        self.sessions.pop(key, None)
+        if current:
+            self.end_play(controller, *current)
+        if package and gamelist.PACKAGE.match(package):
+            self.sessions[key] = (package, time.monotonic())
+
+    def end_play(self, controller, package, started):
+        seconds = time.monotonic() - started
+        api = controller.instance.api
+        alive = controller.on
+        known = controller.apps
+
+        def look():
+            # Only apps you installed count: the launcher, Settings and Google Play come with Android
+            # The Apps page's list can predate a game installed since, so a game missing from it is looked up
+            apps = known if known and package in known or not alive else controller.emulator.apps()
+            apps = apps or []
+            crashes = gamelist.crash_lines(controller.emulator.crash_log(), package) if alive else []
+            return package in apps, crashes
+
+        def noted(result):
+            installed, crashes = result
+            if not installed:
+                return
+            record = gamelist.record_play(package, api, seconds, crashes)
+            if not (self.prefs["game_list"] and self.prefs["game_list_drafts"]) or record.get("offered") \
+                    or not gamelist.worth_reporting(record) or self.offer.isVisible():
+                return
+            gamelist.mark(package, api, "offered")
+            listed = gamelist.entry(package)
+            name = listed["name"] if listed else app_name(package)
+            self.offer.show_offer(f"The game list doesn't say how {name} runs on {gamelist.android_name(api)} yet. "
+                                  "Add what you saw?", "Draft it",
+                                  lambda: self.share_to_game_list(api, package, name, record))
+
+        self.run(look, noted, lambda _: None)
+
+    def share_to_game_list(self, api, package, name, record=None):
         modal = Modal(self.dialog_parent(), "Share to the game list",
-                      "Makes a file with how this game runs here, its frame rate and its controls, to add to the "
-                      "game list on GitHub. Only share what you have checked yourself.", width=520)
+                      "Makes an entry with how this game runs here, its frame rate and its controls, for the game "
+                      "list on GitHub. Only share what you have checked yourself."
+                      + (" Androidbox filled in what it saw while you played; change anything that's wrong."
+                         if record else ""), width=520)
         title = QLineEdit(name)
         title.setMaxLength(gamelist.NAME_LIMIT)
         works = QComboBox()
         for value, words in gamelist.WORKS.items():
             works.addItem(words, value)
-        notes = QLineEdit()
+        notes = QLineEdit(gamelist.guess_notes(record) if record else "")
         notes.setMaxLength(gamelist.NOTES_LIMIT)
         notes.setPlaceholderText("Anything worth knowing: a setting to change, what doesn't work")
+        if record:
+            works.setCurrentIndex(works.findData(gamelist.guess_works(record)))
         modal.add(label("Name", "Section"))
         modal.add(title)
-        modal.add(label(f"How it runs on {gamelist.android_name(controller.instance.api)}", "Section"))
+        modal.add(label(f"How it runs on {gamelist.android_name(api)}", "Section"))
         modal.add(works)
         modal.add(label("Notes", "Section"))
         modal.add(notes)
         modal.cancel()
 
-        def save():
+        def made():
             entry = gamelist.entry_for(package, title.text() or name, works.currentData(), notes.text(),
-                                       android=controller.instance.api, fps=profiles.game(package).get("fps", 0))
+                                       android=api, fps=profiles.game(package).get("fps", 0))
             wrong = gamelist.problems(entry)
             if wrong:
                 self.toast(wrong[0], "bad")
-                return
+                return None
+            return entry
+
+        def finished():
+            gamelist.mark(package, api, "done")
+            if self.page == "gamelist":
+                self.show_page("gamelist")
+
+        def send():
+            entry = made()
+            if not entry:
+                return False
+            self.open_link(gamelist.propose_link(entry))
+            finished()
+            self.toast("GitHub opened with the entry filled in. Commit it there to open the pull request", "good")
+
+        def save():
+            entry = made()
+            if not entry:
+                return False
             file, _ = QFileDialog.getSaveFileName(self, "Save the game list entry",
                                                   str(documents() / f"{package}.json"), LAYOUT_FILTER)
             if not file:
-                return
+                return False
             Path(file).write_text(json.dumps(entry, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+            finished()
             done = Modal(self.dialog_parent(), "Saved",
                          f"{Path(file).name} is ready. Add it to the games folder on GitHub in a pull request, or "
                          "upload it there with Add file, and it shows up for everyone once it is merged.")
@@ -1687,7 +1764,8 @@ class MainWindow(QMainWindow, ScreenActions):
             done.action("Open the games folder", lambda: self.open_link(gamelist.CONTRIBUTE))
             done.open()
 
-        modal.action("Save…", save)
+        modal.action("Save file…", save, kind="secondary")
+        modal.action("Send on GitHub", send)
         modal.open()
 
     def set_game_fps(self, controller, package, fps):

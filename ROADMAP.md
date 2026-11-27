@@ -3,6 +3,8 @@
 What is planned for Androidbox, roughly in order. Nothing here is a promise or a date.
 
 ## Done recently
+- Game list drafts, off unless you turn them on: Androidbox notes how long you play each game and whether it
+  crashes, then offers that game's entry filled in, to check and send to GitHub as a pull request
 - Linux: the Android 4.1 image for OUYA and GameStick games, on the Linux build of the older emulator
 - Game list: a shared list on GitHub of how well games run, with a frame rate and controls to start from. Browse
   it from the sidebar, see it on the Apps page, get a game's setup offered the first time you open it, and share

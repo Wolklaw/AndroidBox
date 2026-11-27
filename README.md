@@ -299,8 +299,15 @@ the same at any time. Nothing is changed without you choosing it.
 
 The list is read from this repository at most once a day and kept for offline use, and nothing is sent back. Turn
 it off under **All instances → Everywhere → Game list**. To add a game you've checked, choose **Share to the game
-list…** in its **⋯** menu and add the file to a pull request, or [open a game
-report](https://github.com/Wolklaw/Androidbox/issues/new?template=game_report.yml). [How to add a game](games#readme).
+list…** in its **⋯** menu and **Send on GitHub**, which opens GitHub with the file filled in for a pull request,
+or [open a game report](https://github.com/Wolklaw/Androidbox/issues/new?template=game_report.yml).
+[How to add a game](games#readme).
+
+To have Androidbox do most of that for you, turn on **All instances → Everywhere → Draft game list entries as I
+play**. It is off unless you turn it on. Androidbox then notes, on your PC only, how long each game you installed
+is in front and whether Android closes it with a crash. After about 10 minutes with a game the list doesn't cover
+on your Android version, it offers the game's entry filled in from what it saw, and keeps it on the Game list page
+until you send, save or dismiss it. Nothing is sent unless you choose **Send on GitHub**.
 
 ### Saved states
 

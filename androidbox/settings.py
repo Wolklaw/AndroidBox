@@ -22,6 +22,8 @@ LOCAL = {
     # The shared game list, read from GitHub once a day, and the games whose setup was already offered
     "game_list": True,
     "game_list_offered": [],
+    # Off unless you turn it on: note how long games are played and whether they crash, to draft their entries
+    "game_list_drafts": False,
 }
 
 PROFILE = {

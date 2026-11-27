@@ -845,7 +845,10 @@ class InstancesPage(Page):
         automatic.toggled.connect(lambda on: host.set_pref("auto_update", on))
         check_now = button("Check now", host.check_now, kind="secondary")
         shared_list = Toggle(host.prefs["game_list"])
-        shared_list.toggled.connect(lambda on: host.set_pref("game_list", on))
+        drafts = Toggle(host.prefs["game_list_drafts"])
+        drafts.setEnabled(host.prefs["game_list"])
+        shared_list.toggled.connect(lambda on: (host.set_pref("game_list", on), drafts.setEnabled(on)))
+        drafts.toggled.connect(lambda on: host.set_pref("game_list_drafts", on))
         access = Toggle(host.prefs["claude_access"])
         access.toggled.connect(lambda on: host.set_pref("claude_access", on))
         self.add(card(label("Everywhere", "Section"),
@@ -878,6 +881,14 @@ class InstancesPage(Page):
                       setting("Game list", "Reads the shared list of how well games run from GitHub once a day, "
                                            "shows it on the Apps page and offers a game's setup the first time you "
                                            "open it. Nothing is sent.", shared_list), divider(),
+                      setting("Draft game list entries as I play", "Off unless you turn it on. Notes how long each "
+                                                                   "game you installed is in front and whether "
+                                                                   "Android closes it with a crash, on this PC only. "
+                                                                   "Once you've played a game the list doesn't cover "
+                                                                   "for about 10 minutes, Androidbox offers its entry, "
+                                                                   "filled in, for you to check and send on GitHub. "
+                                                                   "Nothing is sent unless you send it.", drafts),
+                      divider(),
                       setting("Let Claude Code control Android", "Lets Claude Code on this PC tap, type, take "
                                                                   "screenshots and install apps on your running "
                                                                   "instances to test them, as an MCP server or "
@@ -1397,7 +1408,7 @@ class LibraryPage(Page):
                 ("Create desktop shortcut", lambda p=package: host.shortcut_for(controller, p)),
                 (None, None),
                 *from_list, *notes,
-                *([("Share to the game list…", lambda p=package, n=name: host.share_to_game_list(controller, p, n)),
+                *([("Share to the game list…", lambda p=package, n=name: host.share_to_game_list(controller.instance.api, p, n)),
                    (None, None)] if use_list else []),
                 ("Clear data", lambda p=package: host.clear_app_data(controller, p)),
                 ("Uninstall", lambda p=package: host.uninstall_app(controller, p)),
@@ -1527,6 +1538,7 @@ class GameListPage(Page):
                                 "and is kept for when you're offline.", "Muted", wrap=True)))
             return
 
+        self.drafts()
         installed = set(controller.apps or []) if controller and controller.on else set()
         if controller and controller.on and controller.apps is None:
             host.run(controller.emulator.apps, lambda found: self.apps_loaded(controller, found), lambda _: None)
@@ -1564,6 +1576,36 @@ class GameListPage(Page):
         only.currentIndexChanged.connect(narrow)
         narrow()
         self.add(card(heading, nothing, *[line for _, _, line in rows], spacing=14))
+
+    def drafts(self):
+        # Games you played enough for an entry, while drafting is on, until you send, save or dismiss each one
+        if not self.host.prefs["game_list_drafts"]:
+            return
+        waiting = gamelist.to_report()
+        if not waiting:
+            return
+        rows = []
+        for record in waiting:
+            package, api = record["package"], record["api"]
+            listed = gamelist.entry(package)
+            name = listed["name"] if listed else app_name(package)
+            crashes = record.get("crashes", 0)
+            seen = f"Played {gamelist.duration(record.get('seconds', 0))} on {gamelist.android_name(api)}  ·  " \
+                + ("no crashes seen" if not crashes else "1 crash" if crashes == 1 else f"{crashes} crashes")
+            words = column(label(name, "Subheading"), label(package, "Small"), label(seen, "Small"), spacing=2)
+            dismiss = button("Dismiss", lambda _=False, p=package, a=api: self.dismiss_draft(p, a), kind="secondary")
+            draft = button("Draft it…", lambda _=False, p=package, a=api, n=name, r=record:
+                           self.host.share_to_game_list(a, p, n, r))
+            line = row(avatar(instances.initials(name), "raised"), words, dismiss, draft, spacing=10)
+            line.layout().setStretchFactor(words, 1)
+            rows.append(line)
+        self.add(card(label(f"Played here, not on the list · {len(rows)}", "Section"),
+                      label("Androidbox drafts an entry from what it saw while you played. Check it before you "
+                            "send it.", "Muted", wrap=True), *rows, spacing=12))
+
+    def dismiss_draft(self, package, api):
+        gamelist.mark(package, api, "done")
+        self.refresh()
 
     def game_row(self, controller, entry, here):
         host = self.host

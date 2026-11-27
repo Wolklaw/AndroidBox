@@ -1,11 +1,12 @@
 """The shared game list: one file per game in the repository's games folder, saying how well it runs, which Android to
 use, a frame rate and a controls layout. Androidbox reads the list's index from GitHub and keeps a copy, so it still
-works offline. Nothing is sent anywhere."""
+works offline. Nothing is sent anywhere unless you send a game's entry yourself."""
 import json
 import re
 import time
 import urllib.request
 from dataclasses import asdict, fields
+from urllib.parse import urlencode
 
 from . import REPOSITORY, installer, keymap, paths, profiles
 
@@ -198,3 +199,118 @@ def entry_for(package, name, works, notes="", android="", fps=0):
     if controls:
         made["controls"] = controls
     return made
+
+
+# Drafting reports while you play, if you turn it on: Androidbox notes how long each game was in front and how often
+# Android closed it with a crash or an "isn't responding" dialog, and once a game has had a fair run it offers to
+# make that game's entry. The notes stay in this file; an entry only reaches GitHub if you send it yourself
+PLAYED = paths.DATA / "played.json"
+REPORT_AFTER = 10 * 60
+CRASH_LINE = re.compile(r"\b(am_crash|am_anr)\s*:\s*\[(.*)\]")
+SEEN_LIMIT = 40
+NEW_FILE = f"https://github.com/{REPOSITORY}/new/main/{FOLDER}"
+
+
+def played():
+    try:
+        data = json.loads(PLAYED.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def play_record(package, api):
+    found = played().get(f"{api}:{package}")
+    return found if isinstance(found, dict) else None
+
+
+def crash_lines(text, package):
+    """The crash and "isn't responding" lines for one package in Android's event log"""
+    found = []
+    for line in text.splitlines():
+        match = CRASH_LINE.search(line)
+        if match and package in (part.strip() for part in match.group(2).split(",")):
+            found.append(line.strip())
+    return found
+
+
+def record_play(package, api, seconds, crashes=()):
+    """Adds one stretch of play. Crash lines already counted in an earlier stretch aren't counted again, because
+    Android keeps them in its log until it fills up"""
+    data = played()
+    key = f"{api}:{package}"
+    record = data.get(key) if isinstance(data.get(key), dict) else {}
+    seen = list(record.get("seen", []))
+    new = [line for line in dict.fromkeys(crashes) if line not in seen]
+    record.update(package=package, api=api, seconds=record.get("seconds", 0) + max(0, round(seconds)),
+                  sessions=record.get("sessions", 0) + 1, crashes=record.get("crashes", 0) + len(new),
+                  seen=(seen + new)[-SEEN_LIMIT:], last=time.time())
+    data[key] = record
+    paths.write_text(PLAYED, json.dumps(data), encoding="utf-8")
+    return record
+
+
+def mark(package, api, flag):
+    """Notes that a game's draft was offered (the bar at the bottom shows once) or is done with (sent, saved or
+    dismissed, so it leaves the Game list page)"""
+    data = played()
+    record = data.get(f"{api}:{package}")
+    if isinstance(record, dict):
+        record[flag] = True
+        paths.write_text(PLAYED, json.dumps(data), encoding="utf-8")
+
+
+def worth_reporting(record):
+    """Whether a game has been played enough to say how it runs, and the list doesn't already say so for this
+    Android version. A game that crashes straight away counts too, after a few tries"""
+    if not record or record.get("done"):
+        return False
+    listed = entry(record["package"])
+    if listed and listed.get("android") in (None, record["api"]):
+        return False
+    return record.get("seconds", 0) >= REPORT_AFTER or (record.get("crashes", 0) >= 3 and
+                                                         record.get("sessions", 0) >= 3)
+
+
+def to_report(api=None):
+    """Played games waiting for their entry, most recently played first"""
+    found = [record for record in played().values() if isinstance(record, dict) and "package" in record
+             and (api is None or record.get("api") == api) and worth_reporting(record)]
+    return sorted(found, key=lambda record: -record.get("last", 0))
+
+
+def duration(seconds):
+    minutes = round(seconds / 60)
+    if minutes < 1:
+        return "under a minute"
+    if minutes < 90:
+        return "1 minute" if minutes == 1 else f"{minutes} minutes"
+    hours = round(seconds / 3600)
+    return f"{hours} hours"
+
+
+def guess_works(record):
+    """A starting answer for how well it runs, from what was seen. You change it before anything is sent"""
+    crashes = record.get("crashes", 0)
+    if not crashes:
+        return "yes"
+    if record.get("seconds", 0) < 2 * 60:
+        return "no"
+    return "partly"
+
+
+def guess_notes(record):
+    crashes = record.get("crashes", 0)
+    if not crashes:
+        return ""
+    if guess_works(record) == "no":
+        return "Closes by itself as soon as it opens."
+    return "Closed by itself once while playing." if crashes == 1 else \
+        f"Closed by itself {crashes} times while playing."
+
+
+def propose_link(found):
+    """GitHub's page for adding a file, filled in with this entry. It forks the repository for you if needed and
+    ends in a pull request, under your own GitHub account"""
+    text = json.dumps(found, indent=1, ensure_ascii=False) + "\n"
+    return f"{NEW_FILE}?{urlencode({'filename': found['package'] + '.json', 'value': text})}"
