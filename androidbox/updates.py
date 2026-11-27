@@ -4,13 +4,15 @@ import re
 import urllib.request
 from dataclasses import dataclass
 
-from . import REPOSITORY, VERSION, paths
+from . import REPOSITORY, VERSION, native, paths
 
 RELEASES = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 # Only an installer that GitHub itself serves from this project's releases is ever downloaded (GitHub's
 # spelling of the repository name can differ in case from ours, so the prefix is compared without case)
 DOWNLOADS = f"https://github.com/{REPOSITORY}/releases/download/"
-INSTALLER = re.compile(r"^Androidbox-Setup-\d+(\.\d+)*\.exe$")
+WINDOWS_INSTALLER = re.compile(r"^Androidbox-Setup-\d+(\.\d+)*\.exe$")
+# On Linux, the release's source with the install script, which the app runs again over its own copy
+LINUX_PACKAGE = re.compile(r"^Androidbox-\d+(\.\d+)*-linux\.tar\.gz$")
 NOTES_LIMIT = 600
 # The first paragraph of every release page tells people on an old copy how to download; the app already does that
 PAGE_INSTRUCTIONS = "Press Download"
@@ -44,7 +46,8 @@ def request(url):
 def latest():
     with urllib.request.urlopen(request(RELEASES), timeout=15) as response:
         release = json.loads(response.read())
-    assets = [asset for asset in release.get("assets", []) if INSTALLER.match(asset.get("name", ""))
+    installer = WINDOWS_INSTALLER if native.WINDOWS else LINUX_PACKAGE
+    assets = [asset for asset in release.get("assets", []) if installer.match(asset.get("name", ""))
               and asset.get("browser_download_url", "").lower().startswith(DOWNLOADS.lower())]
     asset = assets[0] if assets else {}
     digest = asset.get("digest") or ""

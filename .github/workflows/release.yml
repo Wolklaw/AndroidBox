@@ -1,7 +1,8 @@
 name: Release
 
 # Every push to main that raises the version in androidbox/__init__.py builds the installer and publishes it as a
-# release. Installed copies of Androidbox look for the newest release and offer to update themselves from it.
+# release, with the Windows installer and the Linux package. Installed copies of Androidbox look for the newest release
+# and offer to update themselves from it.
 on:
   push:
     branches: [main]
@@ -78,6 +79,17 @@ jobs:
           }
           Stop-Process -Id $app.Id -Force
 
+      - name: Pack the Linux release
+        if: steps.version.outputs.released == 'false'
+        shell: pwsh
+        run: |
+          # The source with its install script: Linux copies installed with install.sh download it and run the script
+          # again to update themselves. autocrlf off keeps the files exactly as committed, with Linux line endings
+          $version = "${{ steps.version.outputs.version }}"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          git -c core.autocrlf=false archive --format=tar.gz --prefix="Androidbox-$version/" -o "dist/Androidbox-$version-linux.tar.gz" HEAD
+          if ($LASTEXITCODE -ne 0) { throw "Packing the Linux release failed" }
+
       - name: Publish the release
         if: steps.version.outputs.released == 'false'
         shell: pwsh
@@ -94,11 +106,12 @@ jobs:
           $notes = "Press Download, then open the installer from the page. Your instances and settings are kept.`n`n$changes"
           Set-Content -Path notes.md -Value $notes -Encoding utf8
           $installer = "dist/Androidbox-Setup-$version.exe"
+          $linux = "dist/Androidbox-$version-linux.tar.gz"
           gh release view "v$version" --json tagName *> $null
           if ($LASTEXITCODE -eq 0) {
             # Someone published this version while the build ran: add the installer to that release, don't fail
-            gh release upload "v$version" $installer --clobber
+            gh release upload "v$version" $installer $linux --clobber
           } else {
-            gh release create "v$version" $installer --title "Androidbox $version" --notes-file notes.md --target $env:GITHUB_SHA
+            gh release create "v$version" $installer $linux --title "Androidbox $version" --notes-file notes.md --target $env:GITHUB_SHA
           }
           if ($LASTEXITCODE -ne 0) { throw "Publishing the release failed" }

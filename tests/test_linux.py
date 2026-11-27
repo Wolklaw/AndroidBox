@@ -88,7 +88,8 @@ class WhatDiffers(unittest.TestCase):
                 pass
             self.assertFalse(native.close_crash_dialogs())
             self.assertEqual(native.short_path("/home/a b/x"), "/home/a b/x")
-            self.assertTrue(native.animations_allowed())
+            with mock.patch.object(native, "_desktop_animations", return_value=True):
+                self.assertTrue(native.animations_allowed())
 
     def test_discovery_folders_include_where_linux_emulators_write(self):
         with LINUX, mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/1000", "USER": "spark"}):
@@ -225,10 +226,75 @@ class Desktop(unittest.TestCase):
             self.assertFalse(entry.exists())
             system.start_with_windows(False)
 
-    def test_updates_are_left_to_the_system_on_linux(self):
-        self.assertFalse(system.can_update())
-        with self.assertRaises(OSError):
-            system.install_update(self.folder / "x")
+    def test_a_copy_not_installed_with_install_sh_leaves_updates_to_the_system(self):
+        with mock.patch.dict(os.environ, {"ANDROIDBOX_INSTALL": "", "ANDROIDBOX_PREFIX": ""}):
+            self.assertFalse(system.can_update())
+            with self.assertRaises(OSError):
+                system.install_update(self.folder / "x")
+
+    def test_a_copy_install_sh_put_in_the_users_folder_can_update(self):
+        prefix = self.folder / "androidbox-app"
+        (prefix / "app").mkdir(parents=True)
+        (prefix / "app" / "Androidbox.pyw").write_text("")
+        with mock.patch.dict(os.environ, {"ANDROIDBOX_INSTALL": "user", "ANDROIDBOX_PREFIX": str(prefix)}):
+            self.assertEqual(system.linux_install(), ("user", prefix))
+            self.assertTrue(system.can_update())
+            with mock.patch.object(system, "read_only", return_value=True):
+                self.assertFalse(system.can_update())
+        with mock.patch.dict(os.environ, {"ANDROIDBOX_INSTALL": "system", "ANDROIDBOX_PREFIX": str(prefix)}):
+            with mock.patch.object(shutil, "which", return_value="/usr/bin/pkexec"):
+                self.assertTrue(system.can_update())
+            with mock.patch.object(shutil, "which", return_value=None):
+                self.assertFalse(system.can_update())
+        with mock.patch.dict(os.environ, {"ANDROIDBOX_INSTALL": "user", "ANDROIDBOX_PREFIX": str(self.folder)}):
+            self.assertIsNone(system.linux_install())
+
+    def test_an_update_package_unpacks_to_the_folder_with_install_sh(self):
+        import io
+        import tarfile
+
+        def package(name, members):
+            archive = self.folder / name
+            with tarfile.open(archive, "w:gz") as tar:
+                for member, data in members:
+                    info = tarfile.TarInfo(member)
+                    info.size = len(data)
+                    tar.addfile(info, io.BytesIO(data))
+            return archive
+
+        good = package("good.tar.gz", [("Androidbox-9.9.9/Androidbox.pyw", b""),
+                                       ("Androidbox-9.9.9/packaging/linux/install.sh", b"#!/bin/bash\n")])
+        source = system.unpack(good, self.folder / "update-source")
+        self.assertEqual(source, self.folder / "update-source" / "Androidbox-9.9.9")
+        self.assertTrue((source / "packaging" / "linux" / "install.sh").is_file())
+
+        other = package("other.tar.gz", [("something/packaging/linux/install.sh", b"")])
+        with self.assertRaises(ValueError):
+            system.unpack(other, self.folder / "update-source")
+
+        escape = package("escape.tar.gz", [("Androidbox-9.9.9/Androidbox.pyw", b""),
+                                           ("Androidbox-9.9.9/packaging/linux/install.sh", b""),
+                                           ("../outside.txt", b"no")])
+        with self.assertRaises(Exception):
+            system.unpack(escape, self.folder / "update-source")
+        self.assertFalse((self.folder / "outside.txt").exists())
+
+    def test_an_update_runs_install_sh_after_the_app_quits(self):
+        prefix = self.folder / "androidbox-app"
+        (prefix / "app").mkdir(parents=True)
+        (prefix / "app" / "Androidbox.pyw").write_text("")
+        download = self.folder / "downloads" / "Androidbox-9.9.9-linux.tar.gz"
+        download.parent.mkdir()
+        with mock.patch.dict(os.environ, {"ANDROIDBOX_INSTALL": "system", "ANDROIDBOX_PREFIX": str(prefix)}), \
+                mock.patch.object(system, "unpack", return_value=self.folder / "update-source" / "x") as unpack, \
+                mock.patch.object(system, "after_exit") as after:
+            system.install_update(download, relaunch=("/usr/bin/androidbox", ""))
+        self.assertEqual(unpack.call_args.args[1], self.folder / "update-source")
+        script, values = after.call_args.args[:2]
+        self.assertIn("install.sh", script)
+        self.assertEqual(values["UPDATE_AS"], "pkexec")
+        self.assertEqual(values["UPDATE_OPTIONS"], "")
+        self.assertEqual(values["UPDATE_PREFIX"], str(prefix))
 
     def test_a_python_launch_quotes_the_script_path(self):
         with mock.patch.dict(os.environ, {"ANDROIDBOX_COMMAND": ""}), \
@@ -261,10 +327,21 @@ class Desktop(unittest.TestCase):
 
 class Controls(unittest.TestCase):
     def test_global_shortcuts_are_refused_on_linux_instead_of_failing(self):
-        with mock.patch.object(hotkeys.Hotkeys, "supported", False):
-            keys = hotkeys.Hotkeys(None)
-            self.assertEqual(keys.set({"Ctrl+Alt+B": lambda: None, "Ctrl+Alt+M": lambda: None}),
-                             ["Ctrl+Alt+B", "Ctrl+Alt+M"])
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
+        app = QCoreApplication.instance() or QCoreApplication([])
+        if not hotkeys.LINUX:
+            self.skipTest("Needs Linux")
+        with mock.patch.object(hotkeys, "BACKENDS", ()):
+            keys = hotkeys.Hotkeys(app)
+            answers = []
+            loop = QEventLoop()
+            keys.refused.connect(lambda refused, why: (answers.append((refused, why)), loop.quit()))
+            QTimer.singleShot(5000, loop.quit)
+            keys.set({"Ctrl+Alt+B": lambda: None, "B": lambda: None})
+            loop.exec()
+        self.assertEqual(answers, [(["B", "Ctrl+Alt+B"], hotkeys.UNSUPPORTED)])
+        self.assertEqual(keys.kind, "")
 
     def test_without_xinput_there_is_just_no_controller_instead_of_an_error(self):
         with LINUX:

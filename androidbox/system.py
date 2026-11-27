@@ -179,19 +179,84 @@ def restart(relaunch=None):
                {"RELAUNCH_TARGET": target, "RELAUNCH_ARGUMENTS": prefix})
 
 
+def linux_install():
+    """How install.sh put this copy here: ("user" or "system", its folder), or None if it wasn't (a copy run from
+    source, or one a package manager owns)"""
+    mode, prefix = os.environ.get("ANDROIDBOX_INSTALL"), os.environ.get("ANDROIDBOX_PREFIX")
+    if mode not in ("user", "system") or not prefix or not Path(prefix, "app", "Androidbox.pyw").is_file():
+        return None
+    return mode, Path(prefix)
+
+
+def read_only(folder):
+    try:
+        return bool(os.statvfs(folder).f_flag & os.ST_RDONLY)
+    except OSError:
+        return True
+
+
 def can_update():
-    # Only the installed Windows app updates itself. A copy run from source is updated with git, and on Linux
-    # the system (SparkOS, or a package) brings new versions
-    return native.WINDOWS and bool(getattr(sys, "frozen", False))
+    # The installed Windows app, and on Linux a copy that install.sh put somewhere it can be replaced: in the
+    # user's own folder, or under /usr with pkexec to ask for the password. A system image such as SparkOS's has a
+    # read-only /usr and brings new versions itself, and a copy run from source is updated with git
+    if native.WINDOWS:
+        return bool(getattr(sys, "frozen", False))
+    install = linux_install()
+    if not install or read_only(install[1]):
+        return False
+    mode, prefix = install
+    if mode == "user":
+        return os.access(prefix, os.W_OK)
+    return bool(shutil.which("pkexec"))
+
+
+# Runs the newer release's install.sh over this copy (as root through pkexec for an install under /usr), keeps what
+# it said in the log, and starts Androidbox again whether it worked or not: the script swaps the new copy in only
+# once it is complete, so a failed update leaves the old one working
+UPDATE_SH = ('{ echo "--- $(date)"; $UPDATE_AS bash "$UPDATE_SOURCE/packaging/linux/install.sh" $UPDATE_OPTIONS '
+             '--prefix "$UPDATE_PREFIX"; echo "--- exit $?"; } >>"$UPDATE_LOG" 2>&1; '
+             'rm -rf "$(dirname "$UPDATE_SOURCE")"; ')
+
+
+def unpack(archive, target):
+    """Unpacks the release's source into target and returns the folder with install.sh in it. Nothing in the
+    archive may land outside target"""
+    import tarfile
+    shutil.rmtree(target, ignore_errors=True)
+    target.mkdir(parents=True)
+    with tarfile.open(archive, "r:gz") as source:
+        if hasattr(tarfile, "data_filter"):
+            source.extractall(target, filter="data")
+        else:
+            root = target.resolve()
+            for member in source.getmembers():
+                if not (member.isfile() or member.isdir()) or not (root / member.name).resolve().is_relative_to(root):
+                    raise ValueError(f"The update has an unexpected file in it: {member.name}")
+            source.extractall(target)
+    found = [script.parent.parent.parent for script in target.glob("*/packaging/linux/install.sh")]
+    if len(found) != 1 or not (found[0] / "Androidbox.pyw").is_file():
+        raise ValueError("The update isn't an Androidbox release")
+    return found[0]
 
 
 def install_update(installer, relaunch=None):
     """Once this copy has quit, runs the new installer and starts Androidbox again.
 
-    Windows asks permission when Androidbox is in Program Files. If that's refused, or the install fails, the
-    copy that was already there starts again, and the update is offered next time."""
+    Windows asks permission when Androidbox is in Program Files, and Linux when it is under /usr. If that's refused,
+    or the install fails, the copy that was already there starts again, and the update is offered next time."""
     if not native.WINDOWS:
-        raise OSError("Androidbox updates itself only on Windows")
+        install = linux_install()
+        if not install:
+            raise OSError("This copy of Androidbox wasn't installed with install.sh, so it can't update itself")
+        mode, prefix = install
+        source = unpack(installer, Path(installer).parent.with_name("update-source"))
+        target, arguments = relaunch or launcher()
+        paths.LOGS.mkdir(parents=True, exist_ok=True)
+        after_exit(UPDATE_SH + START_AGAIN_SH, {
+            "UPDATE_AS": "" if mode == "user" else "pkexec", "UPDATE_OPTIONS": "--user" if mode == "user" else "",
+            "UPDATE_SOURCE": str(source), "UPDATE_PREFIX": str(prefix), "UPDATE_LOG": str(paths.LOGS / "update.log"),
+            "RELAUNCH_TARGET": target, "RELAUNCH_ARGUMENTS": arguments}, patience=45)
+        return
     target, prefix = relaunch or launcher()
     install = ("Start-Process -FilePath $env:UPDATE_INSTALLER -ArgumentList '/SILENT','/SUPPRESSMSGBOXES','/NORESTART' "
                "-Wait -ErrorAction SilentlyContinue; ")

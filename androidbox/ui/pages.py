@@ -19,6 +19,10 @@ from .tools import ToolRail
 from .widgets import (Modal, Toggle, avatar, button, card, column, confirm, divider, glyph_css, label, recolor,
                       row, styled)
 
+MODIFIER_KEY = "Win" if native.WINDOWS else "Super"
+LINUX_SHORTCUTS = "" if native.WINDOWS else (
+    " Your desktop may ask you to allow it first. On desktops without a way for programs to listen for shortcuts, "
+    "it needs you in the input group.")
 STATES = {"on": "Running", "booting": "Starting…", "stopping": "Shutting down…", "crashed": "Stopped unexpectedly"}
 
 
@@ -498,7 +502,7 @@ class MacrosPage(Page):
                   wait, None, spacing=10)
         keys = row(label("Hotkey", "Small"), hotkey, label("Works in any program", "Small"), anywhere, None, spacing=10)
         hint = label("Press the hotkey on the screen to play or stop. To use it from any program, turn on Works in "
-                     "any program and include Ctrl, Alt, Shift or Win, like Ctrl+1.", "Small", wrap=True)
+                     f"any program and include Ctrl, Alt, Shift or {MODIFIER_KEY}, like Ctrl+1.", "Small", wrap=True)
         return column(row(column(title, stats, spacing=4), None, *actions), how, keys, hint, spacing=8)
 
     def set_hotkey(self, controller, name, text):
@@ -858,14 +862,17 @@ class InstancesPage(Page):
                                        "straight away.", look), divider(),
                       setting("Check for updates", f"You're on Androidbox {VERSION}. Androidbox asks GitHub when it "
                                                    "starts, and every few hours while it runs, whether a newer "
-                                                   "version is out." + ("" if native.WINDOWS else
-                                                   " It only tells you: on SparkOS a new version arrives with the "
-                                                   "system's own updates."), updates), divider(),
+                                                   "version is out." + ("" if system.can_update() else
+                                                   " It only tells you: this copy can't replace itself. On SparkOS "
+                                                   "a new version arrives with the system's own updates."),
+                              updates), divider(),
                       setting("Download updates automatically", "Fetches a new version in the background and checks "
                                                                 "it against GitHub's checksum. Androidbox then asks "
                                                                 "before restarting to install it, so it never "
                                                                 "restarts on its own." + ("" if system.can_update() else
-                                                                " Only the installed app can do this."),
+                                                                (" Only the installed app can do this." if native.WINDOWS else
+                                                                 " Only a copy installed with install.sh, outside a "
+                                                                 "read-only system folder, can do this.")),
                               automatic), divider(),
                       setting("Look for an update now", "Checks GitHub right away.", check_now), divider(),
                       setting("Game list", "Reads the shared list of how well games run from GitHub once a day, "
@@ -885,7 +892,6 @@ class InstancesPage(Page):
         boss.setMaximumSequenceLength(1)
         boss.setClearButtonEnabled(True)
         boss.setFixedWidth(170)
-        boss.setEnabled(native.WINDOWS)
         boss.editingFinished.connect(lambda: host.set_boss_key(boss.keySequence().toString()))
         move = button("Move…", host.move_files, kind="secondary")
         default_storage = host.prefs["default_storage_path"]
@@ -898,11 +904,10 @@ class InstancesPage(Page):
                       setting("Start with Windows" if native.WINDOWS else "Start when you sign in",
                               "Opens Androidbox in the tray when you sign in, and starts the "
                               "instances set to start with Androidbox.", windows), divider(),
-                      setting("Boss key", ("A shortcut that works in any program. It hides every Androidbox window "
-                                           "and mutes Android, and brings them back when you press it again. It needs "
-                                           "Ctrl, Alt, Shift or Win with a key.") if native.WINDOWS else
-                              "Windows only: a Linux desktop doesn't let a program listen for a key while another "
-                              "program has the keyboard.", boss), divider(),
+                      setting("Boss key", "A shortcut that works in any program. It hides every Androidbox window "
+                                          "and mutes Android, and brings them back when you press it again. It needs "
+                                          f"Ctrl, Alt, Shift or {MODIFIER_KEY} with a key." + LINUX_SHORTCUTS, boss),
+                      divider(),
                       setting("Where Androidbox keeps its files", f"{paths.HOME}\nAndroid images, instances and "
                                                                   "profiles. Move them to another drive if this one "
                                                                   "is running out of space.", move), divider(),

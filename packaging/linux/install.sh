@@ -108,26 +108,49 @@ echo "--- using $PYTHON ($("$PYTHON" -c 'import sys; print(sys.version.split()[0
 version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$root/androidbox/__init__.py")
 echo "--- installing Androidbox $version into $PREFIX"
 
-# 1. the program. The old tree goes first, so files a newer version dropped don't linger
-rm -rf "$PREFIX/app"
-install -d "$PREFIX/app/assets"
-cp -r "$root/androidbox" "$PREFIX/app/androidbox"
-find "$PREFIX/app" -name __pycache__ -prune -exec rm -rf {} +
-install -m 0644 "$root/Androidbox.pyw" "$PREFIX/app/Androidbox.pyw"
-install -m 0644 "$root/assets/androidbox.png" "$root/assets/androidbox-icons.ttf" "$PREFIX/app/assets/"
+# 1. the program, staged beside the one that is there: Androidbox runs this script again to update itself, and an
+#    update that fails half way must leave the old copy working
+install -d "$PREFIX"
+rm -rf "$PREFIX/app.new" "$PREFIX/venv.new" "$PREFIX/app.old" "$PREFIX/venv.old"
+install -d "$PREFIX/app.new/assets"
+cp -r "$root/androidbox" "$PREFIX/app.new/androidbox"
+find "$PREFIX/app.new" -name __pycache__ -prune -exec rm -rf {} +
+install -m 0644 "$root/Androidbox.pyw" "$PREFIX/app.new/Androidbox.pyw"
+install -m 0644 "$root/assets/androidbox.png" "$root/assets/androidbox-icons.ttf" "$PREFIX/app.new/assets/"
 
-# 2. its Python packages
-# --clear: a venv left by an older install may be on a Python that has since changed
-"$PYTHON" -m venv --clear "$PREFIX/venv"
-"$PREFIX/venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-cache-dir \
-  -r "$root/requirements.txt"
+# 2. its Python packages. The environment there is kept when it was made from the same requirements with the same
+#    Python; otherwise a new one is built (a venv left by an older install may be on a Python that has since changed)
+python_version() { "$1" -c 'import sys; print(sys.version_info[:2])' 2>/dev/null; }
+venv=$PREFIX/venv
+if ! cmp -s "$root/requirements.txt" "$PREFIX/venv/androidbox-requirements.txt" ||
+   [ "$(python_version "$PREFIX/venv/bin/python")" != "$(python_version "$PYTHON")" ]; then
+  venv=$PREFIX/venv.new
+  "$PYTHON" -m venv "$venv"
+  "$venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-cache-dir -r "$root/requirements.txt"
+  install -m 0644 "$root/requirements.txt" "$venv/androidbox-requirements.txt"
+fi
 
-# 3. the command. ANDROIDBOX_COMMAND tells the app how to start itself again, for its restart,
-#    sign-in entry and desktop shortcuts
+# The staged copy has to import before it replaces anything
+QT_QPA_PLATFORM=offscreen "$venv/bin/python" -c \
+  "import sys; sys.path.insert(0, '$PREFIX/app.new'); import androidbox.ui.app, androidbox.ui.window"
+
+# Swapped in with renames, so the old copy goes only once the new one is in place
+[ ! -e "$PREFIX/app" ] || mv "$PREFIX/app" "$PREFIX/app.old"
+mv "$PREFIX/app.new" "$PREFIX/app"
+if [ "$venv" = "$PREFIX/venv.new" ]; then
+  [ ! -e "$PREFIX/venv" ] || mv "$PREFIX/venv" "$PREFIX/venv.old"
+  mv "$PREFIX/venv.new" "$PREFIX/venv"
+fi
+rm -rf "$PREFIX/app.old" "$PREFIX/venv.old"
+
+# 3. the command. ANDROIDBOX_COMMAND tells the app how to start itself again, for its restart, sign-in entry and
+#    desktop shortcuts, and ANDROIDBOX_INSTALL and ANDROIDBOX_PREFIX where to run this script again to update
 install -d "$BIN"
 cat > "$BIN/androidbox" <<EOF
 #!/bin/sh
 export ANDROIDBOX_COMMAND="$BIN/androidbox"
+export ANDROIDBOX_INSTALL="$MODE"
+export ANDROIDBOX_PREFIX="$PREFIX"
 exec "$PREFIX/venv/bin/python" "$PREFIX/app/Androidbox.pyw" "\$@"
 EOF
 chmod 0755 "$BIN/androidbox"

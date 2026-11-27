@@ -36,9 +36,9 @@ class Updates(unittest.TestCase):
         self.assertEqual(updates.parse("1.2"), (1, 2))
 
     def test_only_our_installer_name_is_accepted(self):
-        self.assertTrue(updates.INSTALLER.match("Androidbox-Setup-1.9.6.exe"))
-        self.assertFalse(updates.INSTALLER.match("DroidCore-Setup-1.9.6.exe"))
-        self.assertFalse(updates.INSTALLER.match("Androidbox-Setup-1.9.6.exe.zip"))
+        self.assertTrue(updates.WINDOWS_INSTALLER.match("Androidbox-Setup-1.9.6.exe"))
+        self.assertFalse(updates.WINDOWS_INSTALLER.match("DroidCore-Setup-1.9.6.exe"))
+        self.assertFalse(updates.WINDOWS_INSTALLER.match("Androidbox-Setup-1.9.6.exe.zip"))
 
     def test_release_without_checksum_is_not_installable(self):
         self.assertFalse(updates.Release("2.0", "page", url="u", size=1).installable)

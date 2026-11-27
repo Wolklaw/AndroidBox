@@ -17,12 +17,15 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
   and type_text that quotes special characters
 - Readable non-Latin screen text for Claude (UTF-8 output)
 - Linux build for SparkOS, checked by tests and a headless start in CI
+- Linux: global shortcuts and the boss key (GlobalShortcuts portal, X11 key grabs, or the keyboards for the input
+  group), self-update for copies installed with install.sh, and eco mode that can be turned off again
 - Separate front and back cameras when the PC has two webcams
 
 ## Next
 - Check the Linux build on a real SparkOS desktop: start an instance, controllers, the tray and desktop shortcuts, the
   Graphics card setting under Wayland
-- Linux: global shortcuts through the desktop's GlobalShortcuts portal
+- Linux: check global shortcuts through the GlobalShortcuts portal on KDE Plasma and GNOME, and a self-update from
+  one published release to the next
 - Check macro smart steps on a running instance and tune how strict Strict, Normal and Loose are, and how fast
   the picture search is on a busy game screen
 - Check every new feature on a running instance, on Android 16 and on the Android 4.1 image

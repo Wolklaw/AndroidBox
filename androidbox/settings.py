@@ -1,11 +1,12 @@
 import json
 
-from . import native, paths, profiles
+from . import native, paths, profiles, system
 
 LOCAL = {
     "selected": None,
-    # On Linux new versions come with the system or its package manager, so Androidbox doesn't nag about GitHub
-    "check_updates": native.WINDOWS,
+    # On by default where Androidbox can update itself. A Linux copy it can't replace (SparkOS's, or one run from
+    # source) gets new versions from the system or git, so it doesn't nag about GitHub
+    "check_updates": native.WINDOWS or system.can_update(),
     "auto_update": True,
     "skipped_version": "",
     "seen_version": "",
