@@ -143,6 +143,7 @@ class Keyboards(unittest.TestCase):
         reader.read("kbd", read_end)  # the device went away
         self.assertEqual(reader.devices, {})
 
+    @unittest.skipIf(sys.platform == "win32", "keyboards are opened the Linux way")
     def test_listening_to_just_some_keyboards_is_not_offered(self):
         with mock.patch.object(hotkeys, "keyboards", return_value=[Path("/nonexistent/event9")]):
             with self.assertRaises(OSError):

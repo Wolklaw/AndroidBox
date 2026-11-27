@@ -232,6 +232,7 @@ class Desktop(unittest.TestCase):
             with self.assertRaises(OSError):
                 system.install_update(self.folder / "x")
 
+    @unittest.skipIf(sys.platform == "win32", "read-only folders are checked with statvfs, which Windows lacks")
     def test_a_copy_install_sh_put_in_the_users_folder_can_update(self):
         prefix = self.folder / "androidbox-app"
         (prefix / "app").mkdir(parents=True)
