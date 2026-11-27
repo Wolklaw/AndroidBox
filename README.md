@@ -324,7 +324,7 @@ you.
 ### Stays out of the way
 
 - **Tray & close prompt**: keep Android running when you close the window, so idle games keep going. Clicking **X** asks whether to **Minimize to tray** or **Shut down & exit** (or hides straight to the tray when **Keep running in the tray** is on). Quit from the tray icon.
-- **Interface language (`.pot` / `.po`)**: switch between **English** and **繁體中文** in Instance Settings, Profile Settings, or via the **🌐** button next to the logo (`v<version>`). Translation files live in `locales/androidbox.pot` and `locales/zh_TW/LC_MESSAGES/androidbox.po`.
+- **Interface language (`.pot` / `.po`)**: switch between **English** and **繁體中文** in Instance Settings, Profile Settings, or via the **🌐** button next to the logo (`v<version>`). Translation files live in `locales/androidbox.pot` and `locales/zh_TW/LC_MESSAGES/androidbox.po`. Dropdowns ignore mouse wheel scrolling until opened so scrolling a page never changes settings by accident.
 - **Start with Windows**: Androidbox opens in the tray and starts the instances you marked to start
   with it.
 - **Boss key**: one shortcut that works in any program hides every Androidbox window and mutes Android.
