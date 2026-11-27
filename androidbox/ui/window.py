@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QHB
 
 from .. import (VERSION, browser, claude, diagnostics, emulator, gamelist, installer, instances, keymap, macros, native,
                 paths, profiles, relocate, settings, system, updates)
-from ..hotkeys import Hotkeys
+from ..hotkeys import DECLINED, UNSUPPORTED, Hotkeys
 from . import tasks
 from .controller import Controller, plural
 from .host import ScreenActions
@@ -23,6 +23,7 @@ from .pages import (ControlsPage, GameListPage, InstancesPage, LibraryPage, Macr
                     ScreenPage, SettingsPage, SetupPage, app_name, show_text)
 from . import fun
 from .palette import Palette
+from .phone import PhoneView
 from .popout import PopoutWindow
 from . import theme
 from .theme import COLORS, ICONS, Fonts, stylesheet
@@ -45,6 +46,17 @@ GLOBAL_PAGES = ("instances", "profile", "gamelist")
 HEADER_DETAIL_WIDTHS = (120, 240)
 
 UPDATE_CHECK_HOURS = 6
+
+
+def update_permission():
+    if native.WINDOWS:
+        return "Windows may ask for permission first."
+    install = system.linux_install()
+    # Installed under /usr, the update runs as root through pkexec
+    return "Your password is asked for first, because it's installed for every user." \
+        if install and install[0] == "system" else ""
+
+
 STATES = {"on": "Running", "booting": "Starting…", "stopping": "Shutting down…", "crashed": "Stopped unexpectedly"}
 BACKUP_FILTER = "Androidbox backup (*.androidbox)"
 LAYOUT_FILTER = "Game controls (*.json)"
@@ -87,6 +99,8 @@ class MainWindow(QMainWindow, ScreenActions):
         self.offered_update = None
         self.update_timer = QTimer(self, interval=UPDATE_CHECK_HOURS * 3600 * 1000, timeout=self.check_for_updates)
         self.hotkeys = Hotkeys(QApplication.instance())
+        self.hotkeys.refused.connect(self.hotkeys_answered)
+        self.announce_hotkeys = False
         self.konami_listening = False
         self.listen_for_konami(True)
         tasks.relay.on_error = self.report
@@ -739,8 +753,8 @@ class MainWindow(QMainWindow, ScreenActions):
             return
         self.offered_update = release.version
         modal = Modal(self.dialog_parent(), f"Androidbox {release.version} is ready",
-                      "Androidbox saves your Androids, installs the update and opens again. Windows may ask for "
-                      f"permission first.{self.notes_for(release)}")
+                      "Androidbox saves your Androids, installs the update and opens again. "
+                      f"{update_permission()}{self.notes_for(release)}")
         modal.action("Later", kind="secondary")
         modal.action("Restart and update", self.install_update)
         modal.open()
@@ -757,7 +771,12 @@ class MainWindow(QMainWindow, ScreenActions):
         progress = Progress(self.dialog_parent(), f"Updating to Androidbox {release.version}",
                             "Saving your Androids, then installing. Androidbox opens again by itself.")
         progress.update_progress("Saving your Androids…", 1.0)
-        system.install_update(file)
+        try:
+            system.install_update(file)
+        except (OSError, ValueError) as error:
+            self.pending_update = None
+            progress.done("The update couldn't start", f"{error}. Get it from GitHub instead.")
+            return
         self.quit_app(patience=25, progress=progress)
 
     def export_controls(self, package):
@@ -1842,25 +1861,46 @@ class MainWindow(QMainWindow, ScreenActions):
         self.set_relaxed(True)
 
     def update_hotkeys(self, announce=False):
-        wanted = {}
+        wanted, labels = {}, {}
         if self.prefs["boss_key"]:
             wanted[self.prefs["boss_key"]] = self.boss
+            labels[self.prefs["boss_key"]] = "Androidbox: hide everything (boss key)"
         for macro in macros.load():
-            if macro.get("global") and macro.get("hotkey"):
-                wanted.setdefault(macro["hotkey"], lambda text=macro["hotkey"]: self.global_macro(text))
-        refused = self.hotkeys.set(wanted)
-        if refused and announce and not self.hotkeys.supported:
-            self.toast("Shortcuts that work while another program is in front aren't available on Linux, because "
-                       "the desktop doesn't let a program listen for them", "bad")
-        elif refused and announce:
-            self.toast(f"Windows won't give Androidbox {', '.join(refused)}. Use Ctrl, Alt, Shift or Win with a key, "
-                       "and one no other program has taken", "bad")
+            if macro.get("global") and macro.get("hotkey") and macro["hotkey"] not in wanted:
+                wanted[macro["hotkey"]] = lambda text=macro["hotkey"]: self.global_macro(text)
+                labels[macro["hotkey"]] = f"Androidbox macro: {macro.get('name') or macro['hotkey']}"
+        # The answer can take a while on Linux, where the desktop may ask the user first
+        self.announce_hotkeys = self.announce_hotkeys or announce
+        self.hotkeys.set(wanted, labels)
+
+    def hotkeys_answered(self, refused, why):
+        announce, self.announce_hotkeys = self.announce_hotkeys, False
+        if not refused or not announce:
+            return
+        keys = ", ".join(refused)
+        if why == UNSUPPORTED:
+            self.toast("This desktop doesn't let a program listen for shortcuts while another one is in front. Adding "
+                       "yourself to the input group makes it possible: sudo usermod -aG input $USER, then sign in "
+                       "again", "bad")
+        elif why == DECLINED:
+            self.toast(f"The desktop didn't give Androidbox {keys}. You can allow it in the desktop's shortcut "
+                       "settings", "bad")
+        elif native.WINDOWS:
+            self.toast(f"Windows won't give Androidbox {keys}. Use Ctrl, Alt, Shift or Win with a key, and one no "
+                       "other program has taken", "bad")
+        else:
+            self.toast(f"Androidbox couldn't take {keys}. Use Ctrl, Alt, Shift or Super with a key, and one no other "
+                       "program has taken", "bad")
 
     def set_boss_key(self, text):
         self.set_pref("boss_key", text)
         self.update_hotkeys(announce=True)
 
     def global_macro(self, text):
+        focused = QApplication.focusWidget()
+        if self.hotkeys.passive and isinstance(focused, PhoneView) and focused.bridge:
+            # The key reached the phone in front too, which runs the macro itself
+            return
         live = [self.active(), *self.controllers.values()]
         target = next((controller for controller in live if controller and controller.bridge), None)
         if target:

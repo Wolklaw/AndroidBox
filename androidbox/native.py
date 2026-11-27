@@ -7,6 +7,8 @@ import os
 import signal
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 WINDOWS = sys.platform == "win32"
@@ -86,10 +88,35 @@ def set_priority(pid, eco):
             ctypes.windll.kernel32.SetPriorityClass(handle, 0x4000 if eco else 0x20)
             ctypes.windll.kernel32.CloseHandle(handle)
         return
-    # Raising a process's niceness is always allowed, lowering it again needs a privilege a normal user hasn't got.
-    # So Eco takes effect at once but is only undone for the next start
-    with contextlib.suppress(OSError):
-        os.setpriority(os.PRIO_PROCESS, pid, 10 if eco else 0)
+    try:
+        _set_cpu_weight(pid, eco)
+    except (OSError, ValueError):
+        # No systemd user manager to ask. Raising a process's niceness is always allowed, lowering it again needs a
+        # privilege a normal user hasn't got, so then Eco takes effect at once but is only undone for the next start
+        with contextlib.suppress(OSError):
+            os.setpriority(os.PRIO_PROCESS, pid, 10 if eco else 0)
+
+
+SYSTEMD = ("org.freedesktop.systemd1", "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager")
+ECO_WEIGHT, NORMAL_WEIGHT = 20, 100
+
+
+def _set_cpu_weight(pid, eco):
+    """Puts the process in a systemd scope of its own and sets that scope's share of the processor. Unlike
+    niceness, the share can be raised again without root, so Eco can be turned off while Android runs"""
+    from . import dbus
+    from .dbus import Variant
+    bus = dbus.session()
+    name = f"androidbox-emulator-{pid}.scope"
+    weight = [("CPUWeight", Variant("t", ECO_WEIGHT if eco else NORMAL_WEIGHT))]
+    try:
+        bus.call(*SYSTEMD, "SetUnitProperties", "sba(sv)", (name, True, weight))
+    except dbus.DBusError as error:
+        if error.name != "org.freedesktop.systemd1.NoSuchUnit":
+            raise
+        bus.call(*SYSTEMD, "StartTransientUnit", "ssa(sv)a(sa(sv))", (name, "fail", [
+            ("Description", Variant("s", "Android started by Androidbox")),
+            ("PIDs", Variant("au", [pid])), *weight], []))
 
 
 def _stat_fields(pid):
@@ -239,13 +266,50 @@ def short_path(path):
 
 def animations_allowed():
     if not WINDOWS:
-        return True
+        return _desktop_animations()
     on = ctypes.c_int(1)
     try:
         ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(on), 0)  # SPI_GETCLIENTAREAANIMATION
     except (AttributeError, OSError):
         pass
     return bool(on.value)
+
+
+# The desktop's animation setting, read through the portal on a thread so a slow portal never holds up a window.
+# The first time it waits a moment for the answer. Wherever the desktop doesn't say, animations are on
+_animations = {"on": True, "asked": None}
+ANIMATIONS_RECHECK = 30
+FIRST_ANSWER_WAIT = 0.5
+
+
+def _desktop_animations():
+    now = time.monotonic()
+    first = _animations["asked"] is None
+    if first or now - _animations["asked"] > ANIMATIONS_RECHECK:
+        _animations["asked"] = now
+        reader = threading.Thread(target=_read_desktop_animations, name="animations", daemon=True)
+        reader.start()
+        if first:
+            reader.join(FIRST_ANSWER_WAIT)
+    return _animations["on"]
+
+
+def _read_desktop_animations():
+    try:
+        from . import dbus
+        bus = dbus.portal()
+    except (OSError, ValueError):
+        return
+    # GNOME and desktops that follow its settings, then KDE, where a duration factor of 0 means no animations
+    for namespace, key, means_on in (("org.gnome.desktop.interface", "enable-animations", bool),
+                                     ("org.kde.kdeglobals.KDE", "AnimationDurationFactor", lambda factor: factor > 0)):
+        try:
+            value = bus.call(dbus.PORTAL, dbus.PORTAL_PATH, "org.freedesktop.portal.Settings", "ReadOne", "ss",
+                             (namespace, key), timeout=5)[0]
+            _animations["on"] = bool(means_on(value))
+            return
+        except (OSError, ValueError, TypeError):
+            continue
 
 
 def raise_window(handle):
@@ -308,6 +372,8 @@ def name_process(app, title):
     else:
         # Wayland names the window after this, and the desktop finds the icon by the .desktop file of the same name
         app.setDesktopFileName("dev.wolklaw.Androidbox")
+        # Asks the desktop about animations now, before the first window needs the answer
+        animations_allowed()
 
 
 def show_error_box(title, text):

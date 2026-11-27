@@ -138,17 +138,22 @@ androidbox
 **On Ubuntu**, install `python3-venv libsdl2-2.0-0 libxcb-cursor0 libxkbcommon-x11-0 libegl1 libnss3
 libpulse0` first, then run `bash packaging/linux/install.sh --user` in the downloaded folder.
 
-**To update**, run the script again from a newer release. Androidbox doesn't update itself on Linux, but it tells
-you when a new release is out if you turn on **Check for updates**. `bash packaging/linux/install.sh --uninstall`
-(with `--user` if you installed it that way, or with `sudo` if not) removes it, and your Androids stay in
-`~/.local/share/Androidbox`.
+**To update**, let Androidbox do it: a copy installed with the script downloads new releases and installs them
+itself, the same as on Windows (see [Updates](#updates)). An install for every user under `/usr` asks for your
+password first. On SparkOS, where `/usr` is read-only, a copy installed there comes with the system and is updated
+with it; a `--user` copy updates itself. You can also run the script again from a newer release.
+`bash packaging/linux/install.sh --uninstall` (with `--user` if you installed it that way, or with `sudo` if not)
+removes it, and your Androids stay in `~/.local/share/Androidbox`.
 
 What is different from Windows:
-- **Global shortcuts and the boss key don't work.** A Linux desktop doesn't let a program listen for keys while
-  another program has the keyboard. Shortcuts inside Androidbox's own windows work as before.
-- **No self-update.** Run the install script again from a newer release (see above).
-- **Eco mode can lower the emulator's priority but not raise it back** until the instance restarts: Linux lets
-  a normal user only make a process nicer.
+- **Global shortcuts and the boss key** go through the desktop's GlobalShortcuts portal (KDE Plasma, GNOME 48 and
+  later, Hyprland and others), which may ask you to confirm them. In an X11 session they work without asking. On
+  other Wayland desktops they need your user in the `input` group (`sudo usermod -aG input $USER`, then sign in
+  again), and then the key also still reaches the program in front. Androidbox tells you when a shortcut can't be
+  set. Shortcuts inside Androidbox's own windows always work.
+- **Eco mode** lowers the emulator's share of the processor through systemd, so turning it off gives the share
+  back without restarting the instance. Without a systemd user session it falls back to a lower priority that
+  stays until the instance restarts.
 - **Desktop shortcuts** are `.desktop` files, and *Start when you sign in* adds one to `~/.config/autostart`.
 - Controllers work through SDL (install `SDL2` if it's missing).
 
@@ -335,7 +340,9 @@ Androidbox checks GitHub for a newer release when it starts and every few hours 
 is out, it downloads the installer in the background and checks it against the checksum GitHub published
 for it, so by the time it asks, the update is already on your PC. Choosing **Restart and update** shows
 what it's doing at once: Androidbox saves your Androids, installs, and opens again afterwards. Windows
-asks for permission if it's installed in `Program Files`. If a shutdown ever stalls, Androidbox ends
+asks for permission if it's installed in `Program Files`. On Linux the update is the release's
+`Androidbox-<version>-linux.tar.gz`, installed by the same script you installed with (see
+[On Linux](#on-linux)), and your password is asked for if it's installed under `/usr`. If a shutdown ever stalls, Androidbox ends
 itself and carries on with the install rather than hang. It never restarts on its own. Turn the checks or the automatic download off on the **All instances** page, where
 **Look for an update now** also checks on demand.
 
