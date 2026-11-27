@@ -152,8 +152,18 @@ def pair(title, text):
     return line
 
 
+class ScrollSafeComboBox(QComboBox):
+    """Ignores the mouse wheel unless its list is open, so scrolling a settings page doesn't change it."""
+
+    def wheelEvent(self, event):
+        if self.view().isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()  # passes it on to the page, which scrolls instead
+
+
 def choice(options, current):
-    combo = QComboBox()
+    combo = ScrollSafeComboBox()
     for text, value in options:
         combo.addItem(text, value)
     combo.setCurrentIndex(max(0, combo.findData(current)))
