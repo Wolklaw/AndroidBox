@@ -1,0 +1,963 @@
+# Traditional Chinese (zh_TW) translation for Androidbox.
+# Copyright (C) 2026 Androidbox
+# This file is distributed under the same license as the Androidbox package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Androidbox 1.13.0\n"
+"POT-Creation-Date: 2026-11-27 13:05+0800\n"
+"PO-Revision-Date: 2026-11-27 13:05+0800\n"
+"Last-Translator: Androidbox\n"
+"Language-Team: Traditional Chinese <zh_TW>\n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Instances"
+msgstr "實例列表"
+
+msgid "Create an instance"
+msgstr "建立新實例"
+
+msgid "All instances"
+msgstr "所有實例"
+
+msgid "Game list"
+msgstr "遊戲相容清單"
+
+msgid "Search everything  ·  Ctrl+K"
+msgstr "搜尋所有功能  ·  Ctrl+K"
+
+msgid "Start Android"
+msgstr "啟動 Android"
+
+msgid "Stop Android"
+msgstr "停止 Android"
+
+msgid "Screen"
+msgstr "螢幕畫面"
+
+msgid "Game controls"
+msgstr "遊戲按鍵"
+
+msgid "Macros"
+msgstr "巨集腳本"
+
+msgid "Apps"
+msgstr "應用程式"
+
+msgid "Settings"
+msgstr "設定"
+
+msgid "Profile"
+msgstr "設定檔"
+
+msgid "Running"
+msgstr "運行中"
+
+msgid "Starting…"
+msgstr "啟動中…"
+
+msgid "Shutting down…"
+msgstr "正在關機…"
+
+msgid "Stopped unexpectedly"
+msgstr "異常停止"
+
+msgid "Off"
+msgstr "已關閉"
+
+msgid "Name"
+msgstr "名稱"
+
+msgid "Performance"
+msgstr "效能設定"
+
+msgid "Processor"
+msgstr "處理器核心"
+
+msgid "More cores help heavy games."
+msgstr "更多核心有助於執行大型遊戲。"
+
+msgid "Memory"
+msgstr "記憶體"
+
+msgid "4 GB suits most apps and games."
+msgstr "4 GB 適合大多數應用程式與遊戲。"
+
+msgid "Display"
+msgstr "顯示解析度"
+
+msgid "Tablet runs in landscape, which most games prefer."
+msgstr "平板模式預設為橫向顯示，多數遊戲較適合此比例。"
+
+msgid "Frame rate"
+msgstr "畫面更新率"
+
+msgid "Higher is smoother in games that support it, and uses more power."
+msgstr "在支援的遊戲中畫面更流暢，但會消耗更多電力與效能。"
+
+msgid "Graphics"
+msgstr "圖形渲染"
+
+msgid "Your graphics card is fastest. If Android crashes while starting, try Automatic, then Software."
+msgstr "獨立／內建顯示卡速度最快。若 Android 啟動時閃退，請依序改用自動或軟體渲染。"
+
+msgid "Storage"
+msgstr "儲存空間"
+
+msgid "Room for apps and games. Big games need 64 GB or more. Changing it erases this instance's apps and data."
+msgstr "用於安裝應用程式與遊戲。大型遊戲建議 64 GB 以上。變更容量將會清除此實例的應用與資料。"
+
+msgid "Restart Android to use new hardware settings."
+msgstr "請重新啟動 Android 以套用新的硬體設定。"
+
+msgid "Restart"
+msgstr "重新啟動"
+
+msgid "Extras"
+msgstr "進階與擴充"
+
+msgid "Interface language"
+msgstr "介面語言"
+
+msgid "Choose English or Traditional Chinese for the Androidbox interface. Changes apply straight away."
+msgstr "選擇 Androidbox 介面的顯示語言（英文或繁體中文），切換後立即套用。"
+
+msgid "Eco mode"
+msgstr "省電模式"
+
+msgid "Draws fewer frames and lowers Android's CPU priority. Good for idle games running in the background."
+msgstr "降低畫面更新率與 Android 的 CPU 優先順序，適合在背景掛機的遊戲。"
+
+msgid "Mute"
+msgstr "靜音"
+
+msgid "Silences this instance's sound, so a game in the background stays quiet."
+msgstr "關閉此實例的媒體音效，讓背景執行的遊戲保持安靜。"
+
+msgid "Start with Androidbox"
+msgstr "隨 Androidbox 一同啟動"
+
+msgid "Webcam"
+msgstr "網路攝影機"
+
+msgid "Lets Android apps use your PC's webcam as their camera. Applies the next time Android starts."
+msgstr "讓 Android 應用程式使用電腦的網路攝影機作為相機，將於下次啟動 Android 時生效。"
+
+msgid "Block ads"
+msgstr "阻擋廣告"
+
+msgid "Blocks ad networks inside apps and games. It can't remove ads that come from the same servers as the content, like YouTube's."
+msgstr "阻擋應用程式與遊戲內的廣告聯播網，但無法移除與內容同源的廣告（例如 YouTube）。"
+
+msgid "Ad-free browser"
+msgstr "無廣告瀏覽器"
+
+msgid "Installs Firefox and uBlock Origin, which blocks ads on every website, YouTube included."
+msgstr "安裝 Firefox 與 uBlock Origin，可阻擋各類網站及 YouTube 的廣告。"
+
+msgid "Set up"
+msgstr "立即設定"
+
+msgid "Network proxy"
+msgstr "網路代理 (Proxy)"
+
+msgid "Test"
+msgstr "測試"
+
+msgid "Network conditions"
+msgstr "網路環境模擬"
+
+msgid "Slows this instance's connection to what a phone would get, to see how an app or game copes. Applies right away."
+msgstr "限制此實例的網速以模擬手機行動網路，測試應用或遊戲的表現，立即生效。"
+
+msgid "Automation"
+msgstr "自動化排程"
+
+msgid "Keep a game running"
+msgstr "保持遊戲執行"
+
+msgid "Start every day at"
+msgstr "每日定時啟動"
+
+msgid "Stop every day at"
+msgstr "每日定時關閉"
+
+msgid "Everywhere"
+msgstr "全域設定"
+
+msgid "Sync input"
+msgstr "同步操作"
+
+msgid "Show FPS and system use"
+msgstr "顯示 FPS 與系統資源"
+
+msgid "Compact toolbar"
+msgstr "精簡工具列"
+
+msgid "Theme"
+msgstr "外觀主題"
+
+msgid "Check for updates"
+msgstr "檢查更新"
+
+msgid "Download updates automatically"
+msgstr "自動下載更新"
+
+msgid "Look for an update now"
+msgstr "立即檢查更新"
+
+msgid "Check now"
+msgstr "立即檢查"
+
+msgid "Let Claude Code control Android"
+msgstr "允許 Claude Code 控制 Android"
+
+msgid "New instance"
+msgstr "新增實例"
+
+msgid "Open"
+msgstr "開啟"
+
+msgid "Start"
+msgstr "啟動"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Clone"
+msgstr "複製"
+
+msgid "Back up"
+msgstr "備份"
+
+msgid "Delete"
+msgstr "刪除"
+
+msgid "Save"
+msgstr "儲存"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Close"
+msgstr "關閉"
+
+msgid "Refresh"
+msgstr "重新整理"
+
+msgid "Home"
+msgstr "主畫面"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Recent apps"
+msgstr "最近使用的程式"
+
+msgid "Volume up"
+msgstr "提高音量"
+
+msgid "Volume down"
+msgstr "降低音量"
+
+msgid "Rotate"
+msgstr "旋轉螢幕"
+
+msgid "Shake"
+msgstr "搖晃裝置"
+
+msgid "Screenshot"
+msgstr "螢幕截圖"
+
+msgid "Record video"
+msgstr "螢幕錄影"
+
+msgid "Mute this instance"
+msgstr "靜音此實例"
+
+msgid "Keep on top"
+msgstr "視窗置頂"
+
+msgid "Pop out"
+msgstr "彈出視窗"
+
+msgid "Copy files from Android"
+msgstr "從 Android 匯出檔案"
+
+msgid "Run several Androids side by side. Each has its own apps, accounts and settings."
+msgstr "同時執行多個 Android 實例，各自擁有獨立的應用程式、帳號與設定。"
+
+msgid "Stop all"
+msgstr "全部停止"
+
+msgid "Start all"
+msgstr "全部啟動"
+
+msgid "Side by side"
+msgstr "並排顯示"
+
+msgid "Restore a backup"
+msgstr "還原備份"
+
+msgid "{running} of {total} running"
+msgstr "{running} / {total} 運行中"
+
+msgid "Mirror taps and keys from the instance you're using to every other running instance. Best when they use the same display setting."
+msgstr "將目前操作實例的點擊與按鍵同步到其他正在運行的實例，建議各實例使用相同解析度設定。"
+
+msgid "Show frames per second in the corner of the screen, with how much processor and memory the emulator is using."
+msgstr "在畫面角落顯示每秒幀數 (FPS) 以及模擬器的 CPU 與記憶體使用量。"
+
+msgid "Make the row of tool buttons under the screen smaller."
+msgstr "縮小畫面下方／側邊工具列的按鈕尺寸。"
+
+msgid "Classic is the default. Glitch matches wolklaw.dev: indigo, mint, sharp corners and a magenta and cyan split that tears now and then. It changes straight away."
+msgstr "Classic 為預設主題；Glitch 具有靛藍、薄荷綠、銳角與偶爾出現的掃描線／故障撕裂特效（切換為 Classic 可關閉閃爍），立即生效。"
+
+msgid "Fetches a new version in the background and checks it against GitHub's checksum. Androidbox then asks before restarting to install it, so it never restarts on its own."
+msgstr "在背景自動下載新版並比對 GitHub 校驗碼，安裝前會先詢問您，不會自行重啟。"
+
+msgid "Checks GitHub right away."
+msgstr "立即向 GitHub 檢查是否有新版本。"
+
+msgid "Reads the shared list of how well games run from GitHub once a day, shows it on the Apps page and offers a game's setup the first time you open it. Nothing is sent."
+msgstr "每天從 GitHub 讀取一次共享的遊戲相容性清單，不會上傳任何個人資料。"
+
+msgid "Lets Claude Code on this PC tap, type, take screenshots and install apps on your running instances to test them, as an MCP server or through a helper script in your Androidbox folder."
+msgstr "允許本機的 Claude Code 透過 MCP 或輔助腳本對運行中的實例進行點擊、輸入、截圖與安裝測試。"
+
+msgid "This PC"
+msgstr "本機電腦設定"
+
+msgid "Keep running in the tray"
+msgstr "關閉視窗時縮到系統匣"
+
+msgid "Closing the window hides Androidbox and leaves Android running, so idle games keep going. Quit from the tray icon."
+msgstr "關閉視窗後隱藏 Androidbox 並讓模擬器在背景繼續運行，適合掛機遊戲；可從系統匣圖示完全結束。"
+
+msgid "Start with Windows"
+msgstr "隨 Windows 開機啟動"
+
+msgid "Start when you sign in"
+msgstr "登入時自動啟動"
+
+msgid "Opens Androidbox in the tray when you sign in, and starts the instances set to start with Androidbox."
+msgstr "登入系統時自動在系統匣開啟 Androidbox，並啟動設為隨之啟動的實例。"
+
+msgid "Boss key"
+msgstr "老闆鍵 (Boss Key)"
+
+msgid "A shortcut that works in any program. It hides every Androidbox window and mutes Android, and brings them back when you press it again. It needs Ctrl, Alt, Shift or Win with a key."
+msgstr "全域快捷鍵：可一鍵隱藏所有 Androidbox 視窗並靜音，再按一次恢復顯示。需搭配 Ctrl、Alt、Shift 或 Win 組合鍵。"
+
+msgid "Where Androidbox keeps its files"
+msgstr "Androidbox 資料存放位置"
+
+msgid "Android images, instances and profiles. Move them to another drive if this one is running out of space."
+msgstr "存放 Android 映像檔、實例與設定檔。若磁碟空間不足可遷移至其他磁碟機。"
+
+msgid "Move…"
+msgstr "遷移…"
+
+msgid "Default location for new instances"
+msgstr "新實例預設存放位置"
+
+msgid "The same folder as Androidbox itself"
+msgstr "與 Androidbox 相同資料夾"
+
+msgid "Where a new instance's files go unless you pick somewhere else while creating it. Good for keeping big games off a small system drive."
+msgstr "建立新實例時的預設存放路徑，可將大型遊戲檔案放到較大的磁碟機。"
+
+msgid "Choose…"
+msgstr "選擇…"
+
+msgid "Default"
+msgstr "預設"
+
+msgid "Download mirrors"
+msgstr "下載鏡像站"
+
+msgid "Google only"
+msgstr "僅使用 Google 官方來源"
+
+msgid "Other sources for Android images and tools when Google's servers are slow or blocked. Downloads are still verified against their checksums."
+msgstr "當 Google 伺服器連線較慢或受阻時使用的替代下載來源，所有檔案仍會進行校驗碼驗證。"
+
+msgid "Edit…"
+msgstr "編輯…"
+
+msgid "Keyboard shortcuts"
+msgstr "鍵盤快捷鍵"
+
+msgid "Full screen"
+msgstr "全螢幕"
+
+msgid "Record the screen"
+msgstr "螢幕錄影"
+
+msgid "Game controls on or off"
+msgstr "開啟／關閉遊戲按鍵"
+
+msgid "Edit game controls"
+msgstr "編輯遊戲按鍵"
+
+msgid "Record a macro"
+msgstr "錄製巨集"
+
+msgid "Open in its own window"
+msgstr "在獨立視窗中開啟"
+
+msgid "Back in Android"
+msgstr "Android 返回鍵"
+
+msgid "A profile keeps your game controls, macros, presets and preferences together. Switch profiles to swap all of them at once, or sync one between PCs."
+msgstr "設定檔會保存您的遊戲按鍵配置、巨集、範本與偏好設定，可一鍵切換或在不同電腦間同步。"
+
+msgid "New profile"
+msgstr "新增設定檔"
+
+msgid "Import a profile"
+msgstr "匯入設定檔"
+
+msgid "Your profiles"
+msgstr "您的設定檔"
+
+msgid "Active"
+msgstr "使用中"
+
+msgid "Switch"
+msgstr "切換"
+
+msgid "Rename"
+msgstr "重新命名"
+
+msgid "Duplicate"
+msgstr "建立副本"
+
+msgid "Export"
+msgstr "匯出"
+
+msgid "Sync between PCs"
+msgstr "跨電腦同步"
+
+msgid "Pick a folder that OneDrive, Dropbox, Google Drive or Syncthing keeps up to date. Androidbox stores your profiles there, so every PC using the same folder shares them. Androidbox never uploads anything itself, and your instances and their apps stay on each PC."
+msgstr "選擇由 OneDrive、Dropbox、Google Drive 或 Syncthing 同步的資料夾來保存設定檔；Androidbox 不會自行上傳任何內容，實例與應用程式仍留在各台電腦本機。"
+
+msgid "Choose a folder"
+msgstr "選擇資料夾"
+
+msgid "Change folder"
+msgstr "變更資料夾"
+
+msgid "Stop syncing"
+msgstr "停止同步"
+
+msgid "How well games run on Androidbox, from people who checked them. Use a game's setup to start with its frame rate and controls, or add a game you've checked."
+msgstr "由玩家回報的遊戲相容性清單，可直接套用建議的幀率與按鍵配置，或回報您測試過的遊戲。"
+
+msgid "The game list is off, so Androidbox doesn't read it from GitHub."
+msgstr "遊戲相容清單已關閉，Androidbox 不會從 GitHub 讀取資料。"
+
+msgid "Turn it on"
+msgstr "立即開啟"
+
+msgid "Reading the list from GitHub…"
+msgstr "正在從 GitHub 讀取清單…"
+
+msgid "Not read from GitHub yet."
+msgstr "尚未從 GitHub 讀取。"
+
+msgid "Add a game"
+msgstr "新增遊戲回報"
+
+msgid "Nothing to show yet. The list downloads from GitHub the first time you open it, and is kept for when you're offline."
+msgstr "目前沒有資料。首次開啟時會從 GitHub 下載並保留於本機供離線瀏覽。"
+
+msgid "Search games"
+msgstr "搜尋遊戲"
+
+msgid "No games match."
+msgstr "沒有符合條件的遊戲。"
+
+msgid "Every game"
+msgstr "所有遊戲"
+
+msgid "Works"
+msgstr "可正常遊玩"
+
+msgid "Works with a setup"
+msgstr "需套用設定後可玩"
+
+msgid "Has a setup"
+msgstr "已有推薦設定"
+
+msgid "Installed here"
+msgstr "已安裝於此實例"
+
+msgid "Your instances"
+msgstr "您的實例"
+
+msgid "Create desktop shortcut"
+msgstr "建立桌面捷徑"
+
+msgid "Android is off"
+msgstr "Android 已關閉"
+
+msgid "Start it to use your apps and games. Drop APK files here to install them."
+msgstr "啟動後即可使用應用程式與遊戲，也可將 APK 檔案拖曳至此安裝。"
+
+msgid "Android is saving its state so it resumes quickly next time."
+msgstr "Android 正在保存目前狀態，以便下次快速恢復。"
+
+msgid "Android stopped unexpectedly"
+msgstr "Android 異常停止"
+
+msgid "The log may say why. Starting again usually fixes it."
+msgstr "記錄檔中可能有原因說明，重新啟動通常可解決。"
+
+msgid "Connecting…"
+msgstr "連線中…"
+
+msgid "Android is running. Connecting to its screen."
+msgstr "Android 正在運行，正在連接畫面。"
+
+msgid "Tip"
+msgstr "提示"
+
+msgid "Bring it back"
+msgstr "帶回主視窗"
+
+msgid "Open log"
+msgstr "開啟記錄檔"
+
+msgid "Save diagnostics"
+msgstr "儲存診斷報告"
+
+msgid "Install apps…"
+msgstr "安裝應用程式…"
+
+msgid "Add files to Downloads…"
+msgstr "新增檔案至下載資料夾…"
+
+msgid "Save files from Android to your PC…"
+msgstr "從 Android 匯出檔案至電腦…"
+
+msgid "Set location…"
+msgstr "設定虛擬定位…"
+
+msgid "Eco mode: lower FPS and CPU use"
+msgstr "省電模式：降低 FPS 與 CPU 使用率"
+
+msgid "Sync input to every running instance"
+msgstr "將輸入同步至所有運行中的實例"
+
+msgid "Keep Androidbox on top of other windows"
+msgstr "將 Androidbox 視窗置頂"
+
+msgid "Search everything…    Ctrl+K"
+msgstr "搜尋所有功能…    Ctrl+K"
+
+msgid "Saved states"
+msgstr "狀態快照"
+
+msgid "Save the current state"
+msgstr "儲存目前狀態"
+
+msgid "Keeps this instance exactly as it is, apps, data and screen, so you can come back to this moment. Android has to be running."
+msgstr "完整保存此實例目前的應用程式、資料與畫面，以便日後還原（需於 Android 運行時使用）。"
+
+msgid "Save…"
+msgstr "儲存…"
+
+msgid "Go back to a saved state"
+msgstr "還原已儲存的狀態"
+
+msgid "Loads one you saved earlier. Anything done since is lost."
+msgstr "載入先前的快照，之後所做的變更將會遺失。"
+
+msgid "None saved yet"
+msgstr "尚未儲存任何快照"
+
+msgid "Load"
+msgstr "載入"
+
+msgid "Keep"
+msgstr "備份與範本"
+
+msgid "Save as a preset"
+msgstr "儲存為範本"
+
+msgid "Keeps this instance's processor, memory, display, frame rate and extras in your profile, so a new instance can start the same way on any PC that uses it."
+msgstr "將此實例的處理器、記憶體、解析度、幀率與擴充設定儲存至設定檔，方便在其他電腦上快速建立相同配置。"
+
+msgid "Back up this instance"
+msgstr "備份此實例"
+
+msgid "Saves its apps, data and settings to one file you can restore from All instances."
+msgstr "將應用程式、資料與設定封存為單一檔案，可於「所有實例」頁面還原。"
+
+msgid "Troubleshooting"
+msgstr "疑難排解"
+
+msgid "Diagnostics"
+msgstr "診斷報告"
+
+msgid "Saves Android's log, this instance's settings and a plain summary of anything that looks wrong, such as an ARM translator crash, to one zip. Useful to attach to a bug report."
+msgstr "將 Android 記錄檔、實例設定與異常摘要打包為 zip 檔，方便回報問題時附上。"
+
+msgid "image"
+msgstr "系統映像檔"
+
+msgid "Gets this instance's Android system image from Google again. Worth trying if Android reports it isn't Play Protect certified, or otherwise seems broken."
+msgstr "重新向 Google 下載此實例的 Android 系統映像檔；若發生 Play Protect 未認證或系統異常時可嘗試此功能。"
+
+msgid "Redownload"
+msgstr "重新下載"
+
+msgid "Danger zone"
+msgstr "危險操作區"
+
+msgid "Factory reset"
+msgstr "恢復原廠設定"
+
+msgid "Erase all apps and data, like a new phone."
+msgstr "清除所有應用程式與資料，還原為初始狀態。"
+
+msgid "Delete instance"
+msgstr "刪除實例"
+
+msgid "Remove this instance and everything in it."
+msgstr "永久移除此實例及其所有資料。"
+
+msgid "Androidbox {version} is ready"
+msgstr "Androidbox {version} 已準備就緒"
+
+msgid "Androidbox saves your Androids, installs the update and opens again. Windows may ask for permission first."
+msgstr "Androidbox 會先保存您的實例狀態、安裝更新並重新開啟；Windows 可能會先向您要求授權。"
+
+msgid "Later"
+msgstr "稍後再說"
+
+msgid "Restart and update"
+msgstr "重新啟動並更新"
+
+msgid "Routes all of this instance's traffic through a proxy: host:port or user:pass@host:port for HTTP, or socks5://user:pass@host:port for SOCKS5. Good for giving each instance its own IP. Blank means none. Applies the next time Android starts."
+msgstr "將此實例的所有網路連線導向 Proxy：HTTP 請填 host:port 或 user:pass@host:port，SOCKS5 請填 socks5://user:pass@host:port；留空表示不使用，將於下次啟動 Android 時生效。"
+
+msgid "Opens this game again whenever it closes or crashes, which suits idle and farming games. Use its package name, shown on the Apps page. Blank means off."
+msgstr "當此遊戲關閉或閃退時自動重新開啟，適合掛機遊戲；請填入「應用程式」頁面上顯示的套件名稱，留空表示關閉。"
+
+msgid "Androidbox starts this instance at this time, 24-hour like 08:30. It has to be open, in the tray is fine. Blank means never."
+msgstr "每天於指定時間自動啟動此實例（24 小時制如 08:30，Androidbox 需在開啟或系統匣執行狀態）；留空表示不啟用。"
+
+msgid "Shuts this instance down at this time. Blank means never."
+msgstr "每天於指定時間自動關閉此實例；留空表示不啟用。"
+
+msgid "Play with a keyboard, mouse or controller. Place controls on the screen and Androidbox touches there for you. Every game keeps its own layout."
+msgstr "使用鍵盤、滑鼠或遊戲手把遊玩；在畫面上擺放按鍵後，Androidbox 會代您點擊對應位置，每款遊戲各自保存配置。"
+
+msgid "Start Android and open a game to set up its controls."
+msgstr "請先啟動 Android 並開啟遊戲，即可設定其按鍵配置。"
+
+msgid "Edit on screen"
+msgstr "在畫面上編輯"
+
+msgid "Clear"
+msgstr "清除"
+
+msgid "Import…"
+msgstr "匯入…"
+
+msgid "Export…"
+msgstr "匯出…"
+
+msgid "Starter layouts"
+msgstr "預設配置範本"
+
+msgid "Current app"
+msgstr "目前應用程式"
+
+msgid "Use game controls"
+msgstr "啟用遊戲按鍵"
+
+msgid "Turn this off to type normally in games that have controls."
+msgstr "若需在已設定按鍵的遊戲中正常打字，可暫時關閉此選項。"
+
+msgid "Show key hints"
+msgstr "顯示按鍵提示"
+
+msgid "Draw your controls on top of the game."
+msgstr "在遊戲畫面上方顯示按鍵標記。"
+
+msgid "This game"
+msgstr "目前遊戲配置"
+
+msgid "Controls you can add"
+msgstr "可新增的控制類型"
+
+msgid "Tap"
+msgstr "點擊 (Tap)"
+
+msgid "Click the screen while editing, then press a key or controller button"
+msgstr "編輯時點擊畫面並按下鍵盤或手把按鍵"
+
+msgid "Joystick"
+msgstr "搖桿 (Joystick)"
+
+msgid "Moves with WASD, the D-pad or the left stick. Select it and press four keys to rebind"
+msgstr "使用 WASD、方向鍵或左類比搖桿移動；選取後可依序按下四個按鍵重新綁定"
+
+msgid "Aim"
+msgstr "準星射擊 (Aim)"
+
+msgid "Shooter mode: its key locks the mouse, and moving the mouse turns the camera"
+msgstr "射擊模式：按下綁定鍵鎖定滑鼠並以移動滑鼠轉動視角"
+
+msgid "Look"
+msgstr "視角觀察 (Look)"
+
+msgid "Like Aim, but only while you hold its key"
+msgstr "與準星模式相同，但僅在按住該鍵時生效"
+
+msgid "Fire and Scope"
+msgstr "開火與開鏡"
+
+msgid "Taps for the left and right mouse buttons while aiming"
+msgstr "在瞄準狀態下將滑鼠左／右鍵對應至螢幕點擊"
+
+msgid "Skill"
+msgstr "技能施放 (Skill)"
+
+msgid "MOBA casting: hold the key, point with the mouse, release to cast"
+msgstr "MOBA 指向施法：按住按鍵並移動滑鼠瞄準，放開即施放"
+
+msgid "Turbo"
+msgstr "連點 (Turbo)"
+
+msgid "Hold the key to tap the same spot rapidly"
+msgstr "按住按鍵即可在該位置高速連點"
+
+msgid "Hold"
+msgstr "切換長按 (Hold)"
+
+msgid "Press once to hold a spot down, again to let go. For sprint and auto-run"
+msgstr "按一下持續壓住、再按一下放開，適合衝刺與自動奔跑"
+
+msgid "Swipe"
+msgstr "滑動 (Swipe)"
+
+msgid "One key performs a drag along an arrow you place"
+msgstr "單鍵沿著設定的方向箭頭執行拖曳滑動"
+
+msgid "Tilt"
+msgstr "傾斜體感 (Tilt)"
+
+msgid "Keys tip the device, like steering a wheel. For racing games. The left stick tilts too"
+msgstr "以按鍵模擬裝置傾斜（如方向盤），適合賽車遊戲，亦支援左搖桿控制"
+
+msgid "Macro"
+msgstr "巨集 (Macro)"
+
+msgid "One key plays a macro you recorded, and stops it if you press it again"
+msgstr "單鍵播放已錄製的巨集，再按一次停止"
+
+msgid "Zoom"
+msgstr "縮放 (Zoom)"
+
+msgid "Hold Ctrl and scroll to pinch in and out, no setup needed"
+msgstr "按住 Ctrl 並滾動滑鼠滾輪即可縮放畫面，無需額外設定"
+
+msgid "Mouse, keyboard and controller"
+msgstr "滑鼠、鍵盤與手把操作說明"
+
+msgid "Left-click taps, drag swipes, the scroll wheel scrolls"
+msgstr "左鍵點擊、拖曳滑動、滾輪捲動畫面"
+
+msgid "Right-click goes Back, middle-click goes Home"
+msgstr "滑鼠右鍵返回、中鍵回主畫面"
+
+msgid "Controllers navigate Android too: A is Enter, B is Back, Start is Home"
+msgstr "手把可直接操作 Android：A 為確認、B 為返回、Start 為主畫面"
+
+msgid "Drop APK or XAPK files on the screen to install them"
+msgstr "將 APK 或 XAPK 檔案拖曳至畫面即可直接安裝"
+
+msgid "Record taps, swipes and key presses once, then replay them as often as you like. Macros belong to your profile, so they follow it to every instance and PC."
+msgstr "錄製點擊、滑動與按鍵操作並重複播放；巨集會隨設定檔保存並同步至所有實例與電腦。"
+
+msgid "Stop recording"
+msgstr "停止錄製"
+
+msgid "No macros yet. Record one, and it shows up here."
+msgstr "尚無巨集。錄製後會顯示於此處。"
+
+msgid "Saved"
+msgstr "已儲存的巨集"
+
+msgid "Apps and games"
+msgstr "應用程式與遊戲"
+
+msgid "What's installed on {name}. Open one, give a game its own frame rate, or put a shortcut to it on your desktop."
+msgstr "{name} 內已安裝的應用程式；可開啟應用、為遊戲單獨設定幀率或建立桌面捷徑。"
+
+msgid "Start Android to see what's installed."
+msgstr "請先啟動 Android 以檢視已安裝的應用程式。"
+
+msgid "Looking at what's installed…"
+msgstr "正在讀取已安裝的應用程式…"
+
+msgid "Search apps"
+msgstr "搜尋應用程式"
+
+msgid "Install APK…"
+msgstr "安裝 APK…"
+
+msgid "Manage profiles…"
+msgstr "管理設定檔…"
+
+msgid "Settings for {name}, which runs {android}. Hardware changes apply the next time it starts."
+msgstr "{name} 的設定（運行 {android}）。硬體變更將於下次啟動時生效。"
+
+msgid "Search everything"
+msgstr "搜尋所有功能"
+
+msgid "Try: screenshot, proxy, start, saved state"
+msgstr "試試輸入：screenshot、proxy、start、saved state"
+
+msgid "Go to {page}"
+msgstr "前往 {page}"
+
+msgid "Page"
+msgstr "頁面"
+
+msgid "Instance"
+msgstr "實例"
+
+msgid "Open {name}"
+msgstr "開啟 {name}"
+
+msgid "Start {name}"
+msgstr "啟動 {name}"
+
+msgid "Stop {name}"
+msgstr "停止 {name}"
+
+msgid "Silences this instance's media and notification sounds, so a game in the background stays quiet."
+msgstr "靜音此實例的媒體與通知音效，讓背景執行的遊戲保持安靜。"
+
+msgid "Close Androidbox?"
+msgstr "關閉 Androidbox？"
+
+msgid "Android is currently running ({count}). Choose whether to minimize to the tray or shut down and exit."
+msgstr "目前有 {count} 個 Android 實例正在運行中。請選擇要縮小到系統匣（保持背景運行），或直接關機並離開。"
+
+msgid "Choose whether to minimize Androidbox to the background tray or shut down and exit."
+msgstr "請選擇要將 Androidbox 縮小到背景系統匣，或直接關機並結束程式。"
+
+msgid "Minimize to tray"
+msgstr "縮小到後台系統匣"
+
+msgid "Shut down & exit"
+msgstr "關機並離開"
+
+msgid "Androidbox is still running"
+msgstr "Androidbox 仍在背景運行"
+
+msgid "Open it again from the tray icon. Quit from there to shut Android down."
+msgstr "可從右下角系統匣圖示重新開啟；若要關閉 Android 請從系統匣選擇結束。"
+
+msgid "Your profile: game controls, macros, presets and preferences"
+msgstr "您的設定檔：遊戲按鍵、巨集、範本與偏好設定"
+
+msgid "Other places to get Android from when Google's servers are slow or blocked, one web address per line. They're tried in order after Google. Downloads are still checked against the checksums in the package list, whichever source they came from. Example: https://mirrors.cloud.tencent.com/AndroidSDK/"
+msgstr "當 Google 伺服器連線較慢或受阻時使用的替代下載網址，每行一個網址，將依序於 Google 之後嘗試；所有下載仍會驗證校驗碼。範例：https://mirrors.cloud.tencent.com/AndroidSDK/"
+
+msgid "{name} is showing in a separate window."
+msgstr "{name} 目前正在獨立視窗中顯示。"
+
+msgid "Starting Android…"
+msgstr "正在啟動 Android…"
+
+msgid "This takes a few seconds, or up to a minute on the very first start."
+msgstr "這通常需要幾秒鐘，首次啟動可能需要約一分鐘。"
+
+msgid "Mute this instance: media and notifications"
+msgstr "靜音此實例（媒體與通知音）"
+
+msgid "Rotate  (Ctrl+Shift+O)"
+msgstr "旋轉螢幕  (Ctrl+Shift+O)"
+
+msgid "Full screen  (F11)"
+msgstr "全螢幕  (F11)"
+
+msgid "Open in its own window  (Ctrl+Shift+W)"
+msgstr "在獨立視窗中開啟  (Ctrl+Shift+W)"
+
+msgid "Put back in the main window  (Ctrl+Shift+W)"
+msgstr "放回主視窗  (Ctrl+Shift+W)"
+
+msgid "Game controls on/off  (Ctrl+Shift+K)"
+msgstr "開啟／關閉遊戲按鍵  (Ctrl+Shift+K)"
+
+msgid "Edit game controls  (Ctrl+Shift+E)"
+msgstr "編輯遊戲按鍵  (Ctrl+Shift+E)"
+
+msgid "Record a macro  (Ctrl+Shift+M)"
+msgstr "錄製巨集  (Ctrl+Shift+M)"
+
+msgid "Screenshot  (Ctrl+Shift+S)"
+msgstr "螢幕截圖  (Ctrl+Shift+S)"
+
+msgid "Record the screen  (Ctrl+Shift+R)"
+msgstr "螢幕錄影  (Ctrl+Shift+R)"
+
+msgid "Inspector: saved states, automation, network  (Ctrl+I)"
+msgstr "側邊資訊欄：快照、排程、網路  (Ctrl+I)"
+
+msgid "More tools"
+msgstr "更多工具"
+
+msgid "Frame rate: same as instance"
+msgstr "幀率：與實例相同"
+
+msgid "controls set up"
+msgstr "已設定按鍵"
+
+msgid "running"
+msgstr "運行中"
+
+msgid "Use the game list setup"
+msgstr "套用遊戲相容清單設定"
+
+msgid "Game list notes"
+msgstr "遊戲相容清單備註"
+
+msgid "Force stop"
+msgstr "強制停止"
+
+msgid "Share to the game list…"
+msgstr "分享至遊戲相容清單…"
+
+msgid "Clear data"
+msgstr "清除資料"
+
+msgid "Uninstall"
+msgstr "解除安裝"
+
+msgid "No apps match that search."
+msgstr "沒有符合搜尋條件的應用程式。"
+
+msgid "Installed"
+msgstr "已安裝"
+
+msgid "Switch language"
+msgstr "切換語言 (English / 繁體中文)"
+
+msgid "Open Androidbox"
+msgstr "開啟 Androidbox"
+
+msgid "Quit Androidbox"
+msgstr "結束 Androidbox"

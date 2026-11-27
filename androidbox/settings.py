@@ -15,6 +15,7 @@ LOCAL = {
     "always_on_top": False,
     "compact_tools": False,
     "theme": "classic",
+    "language": "en",
     "inspector": True,
     "default_storage_path": "",
     "mirrors": [],

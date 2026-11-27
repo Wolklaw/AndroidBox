@@ -23,6 +23,10 @@
 </p>
 
 <p align="center">
+  <b>English</b> | <a href="README_zhTW.md">繁體中文</a>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#using-it">Using it</a> ·
@@ -319,8 +323,8 @@ you.
 
 ### Stays out of the way
 
-- **Tray**: keep Android running when you close the window, so idle games keep going. Quit from the
-  tray icon.
+- **Tray & close prompt**: keep Android running when you close the window, so idle games keep going. Clicking **X** asks whether to **Minimize to tray** or **Shut down & exit** (or hides straight to the tray when **Keep running in the tray** is on). Quit from the tray icon.
+- **Interface language (`.pot` / `.po`)**: switch between **English** and **繁體中文** in Instance Settings, Profile Settings, or via the **🌐** button next to the logo (`v<version>`). Translation files live in `locales/androidbox.pot` and `locales/zh_TW/LC_MESSAGES/androidbox.po`. Dropdowns ignore mouse wheel scrolling until opened so scrolling a page never changes settings by accident.
 - **Start with Windows**: Androidbox opens in the tray and starts the instances you marked to start
   with it.
 - **Boss key**: one shortcut that works in any program hides every Androidbox window and mutes Android.
@@ -608,8 +612,7 @@ in `tests/test_linux.py`.
 - `androidbox/emulator.py`: starts and stops the emulator, adb and console commands
 - `androidbox/bridge.py`: the gRPC link, with the screen stream, touch and key input, and sensors
 - `androidbox/keymap.py`, `gamepad.py`: game controls and controller input
-- `androidbox/profiles.py`, `settings.py`: profiles, presets, per-game settings and the sync folder, plus
-  preferences
+- `androidbox/profiles.py`, `settings.py`, `i18n.py`: profiles, presets, per-game settings, preferences, and `.pot`/`.po` UI translations (`locales/`)
 - `androidbox/macros.py`, `browser.py`: macros, with their editing, and the ad-free browser
 - `androidbox/system.py`, `relocate.py`, `hotkeys.py`: what the PC has, shortcuts and Windows startup,
   moving the files to another drive, and shortcuts that work in any program

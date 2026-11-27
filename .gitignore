@@ -1,4 +1,31 @@
+# Python & Virtual Environment
 __pycache__/
+*.py[cod]
+*.egg-info/
 .venv/
+
+# Build & Packaging
 build/
 dist/
+*.spec
+*.mo
+
+# Local CodeGraph Index & IDE
+.codegraph/
+.idea/
+.vscode/
+
+# Privacy, Credentials & Local Runtime Data
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.log
+.emulator_console_auth_token
+*.androidbox
+*.androidbox-profile
+data/
+downloads/
+sdk/

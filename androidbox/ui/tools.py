@@ -1,6 +1,7 @@
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QMenu, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
+from .. import i18n
 from .controller import volume_text
 from .theme import COLORS, ICONS
 from .widgets import ToolButton, styled
@@ -29,6 +30,7 @@ class ToolRail(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.compact = False
         self.buttons = {}
+        self.tooltips = {}
         self.live = False
         self.states = {}
         self.volume = None
@@ -59,8 +61,9 @@ class ToolRail(QWidget):
                 styled(line, lambda widget: widget.setStyleSheet(f"background: {COLORS['line']};"))
                 layout.addWidget(line, alignment=middle)
             for name, tooltip, action, *checkable in group:
-                tool = ToolButton(ICONS[name], tooltip, action, checkable=bool(checkable))
+                tool = ToolButton(ICONS[name], i18n.t(tooltip), action, checkable=bool(checkable))
                 self.buttons[name] = tool
+                self.tooltips[name] = tooltip
                 layout.addWidget(tool, alignment=middle)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -113,9 +116,12 @@ class ToolRail(QWidget):
         for name, checked in self.states.items():
             if name in self.buttons:
                 self.buttons[name].setChecked(checked)
+        for name, tip in self.tooltips.items():
+            if name != "popout" and name in self.buttons:
+                self.buttons[name].setToolTip(i18n.t(tip))
         self.buttons["record"].setText(ICONS["stop"] if self.states["record"] else ICONS["record"])
-        self.buttons["popout"].setToolTip("Put back in the main window  (Ctrl+Shift+W)" if self.host.popped
-                                          else "Open in its own window  (Ctrl+Shift+W)")
+        self.buttons["popout"].setToolTip(i18n.t("Put back in the main window  (Ctrl+Shift+W)") if self.host.popped
+                                          else i18n.t("Open in its own window  (Ctrl+Shift+W)"))
 
     def more_menu(self):
         menu = QMenu(self)
@@ -126,7 +132,7 @@ class ToolRail(QWidget):
                 menu.addSeparator()
                 continue
             text, method, state, needs_live = item
-            action = menu.addAction(text, getattr(self.host, method))
+            action = menu.addAction(i18n.t(text), getattr(self.host, method))
             action.setEnabled(self.live or not needs_live)
             if state:
                 action.setCheckable(True)

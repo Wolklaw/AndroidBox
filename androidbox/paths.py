@@ -81,6 +81,7 @@ CONSOLE_TOKEN = Path.home() / ".emulator_console_auth_token"
 
 BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 ICON = BUNDLE / "assets" / ("androidbox.ico" if WINDOWS else "androidbox.png")
+LOCALES = BUNDLE / "locales"
 
 
 def write_text(path, text, encoding=None):

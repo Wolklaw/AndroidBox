@@ -1,0 +1,966 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026 Androidbox
+# This file is distributed under the same license as the Androidbox package.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Androidbox 1.13.0\n"
+"POT-Creation-Date: 2026-11-27 13:05+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: English\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Instances"
+msgstr ""
+
+msgid "Create an instance"
+msgstr ""
+
+msgid "All instances"
+msgstr ""
+
+msgid "Game list"
+msgstr ""
+
+msgid "Search everything  ·  Ctrl+K"
+msgstr ""
+
+msgid "Start Android"
+msgstr ""
+
+msgid "Stop Android"
+msgstr ""
+
+msgid "Screen"
+msgstr ""
+
+msgid "Game controls"
+msgstr ""
+
+msgid "Macros"
+msgstr ""
+
+msgid "Apps"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Profile"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Starting…"
+msgstr ""
+
+msgid "Shutting down…"
+msgstr ""
+
+msgid "Stopped unexpectedly"
+msgstr ""
+
+msgid "Off"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "Performance"
+msgstr ""
+
+msgid "Processor"
+msgstr ""
+
+msgid "More cores help heavy games."
+msgstr ""
+
+msgid "Memory"
+msgstr ""
+
+msgid "4 GB suits most apps and games."
+msgstr ""
+
+msgid "Display"
+msgstr ""
+
+msgid "Tablet runs in landscape, which most games prefer."
+msgstr ""
+
+msgid "Frame rate"
+msgstr ""
+
+msgid "Higher is smoother in games that support it, and uses more power."
+msgstr ""
+
+msgid "Graphics"
+msgstr ""
+
+msgid "Your graphics card is fastest. If Android crashes while starting, try Automatic, then Software."
+msgstr ""
+
+msgid "Storage"
+msgstr ""
+
+msgid "Room for apps and games. Big games need 64 GB or more. Changing it erases this instance's apps and data."
+msgstr ""
+
+msgid "Restart Android to use new hardware settings."
+msgstr ""
+
+msgid "Restart"
+msgstr ""
+
+msgid "Extras"
+msgstr ""
+
+msgid "Interface language"
+msgstr ""
+
+msgid "Choose English or Traditional Chinese for the Androidbox interface. Changes apply straight away."
+msgstr ""
+
+msgid "Eco mode"
+msgstr ""
+
+msgid "Draws fewer frames and lowers Android's CPU priority. Good for idle games running in the background."
+msgstr ""
+
+msgid "Mute"
+msgstr ""
+
+msgid "Silences this instance's sound, so a game in the background stays quiet."
+msgstr ""
+
+msgid "Start with Androidbox"
+msgstr ""
+
+msgid "Webcam"
+msgstr ""
+
+msgid "Lets Android apps use your PC's webcam as their camera. Applies the next time Android starts."
+msgstr ""
+
+msgid "Block ads"
+msgstr ""
+
+msgid "Blocks ad networks inside apps and games. It can't remove ads that come from the same servers as the content, like YouTube's."
+msgstr ""
+
+msgid "Ad-free browser"
+msgstr ""
+
+msgid "Installs Firefox and uBlock Origin, which blocks ads on every website, YouTube included."
+msgstr ""
+
+msgid "Set up"
+msgstr ""
+
+msgid "Network proxy"
+msgstr ""
+
+msgid "Test"
+msgstr ""
+
+msgid "Network conditions"
+msgstr ""
+
+msgid "Slows this instance's connection to what a phone would get, to see how an app or game copes. Applies right away."
+msgstr ""
+
+msgid "Automation"
+msgstr ""
+
+msgid "Keep a game running"
+msgstr ""
+
+msgid "Start every day at"
+msgstr ""
+
+msgid "Stop every day at"
+msgstr ""
+
+msgid "Everywhere"
+msgstr ""
+
+msgid "Sync input"
+msgstr ""
+
+msgid "Show FPS and system use"
+msgstr ""
+
+msgid "Compact toolbar"
+msgstr ""
+
+msgid "Theme"
+msgstr ""
+
+msgid "Check for updates"
+msgstr ""
+
+msgid "Download updates automatically"
+msgstr ""
+
+msgid "Look for an update now"
+msgstr ""
+
+msgid "Check now"
+msgstr ""
+
+msgid "Let Claude Code control Android"
+msgstr ""
+
+msgid "New instance"
+msgstr ""
+
+msgid "Open"
+msgstr ""
+
+msgid "Start"
+msgstr ""
+
+msgid "Stop"
+msgstr ""
+
+msgid "Clone"
+msgstr ""
+
+msgid "Back up"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Home"
+msgstr ""
+
+msgid "Back"
+msgstr ""
+
+msgid "Recent apps"
+msgstr ""
+
+msgid "Volume up"
+msgstr ""
+
+msgid "Volume down"
+msgstr ""
+
+msgid "Rotate"
+msgstr ""
+
+msgid "Shake"
+msgstr ""
+
+msgid "Screenshot"
+msgstr ""
+
+msgid "Record video"
+msgstr ""
+
+msgid "Mute this instance"
+msgstr ""
+
+msgid "Keep on top"
+msgstr ""
+
+msgid "Pop out"
+msgstr ""
+
+msgid "Copy files from Android"
+msgstr ""
+
+msgid "Run several Androids side by side. Each has its own apps, accounts and settings."
+msgstr ""
+
+msgid "Stop all"
+msgstr ""
+
+msgid "Start all"
+msgstr ""
+
+msgid "Side by side"
+msgstr ""
+
+msgid "Restore a backup"
+msgstr ""
+
+msgid "{running} of {total} running"
+msgstr ""
+
+msgid "Mirror taps and keys from the instance you're using to every other running instance. Best when they use the same display setting."
+msgstr ""
+
+msgid "Show frames per second in the corner of the screen, with how much processor and memory the emulator is using."
+msgstr ""
+
+msgid "Make the row of tool buttons under the screen smaller."
+msgstr ""
+
+msgid "Classic is the default. Glitch matches wolklaw.dev: indigo, mint, sharp corners and a magenta and cyan split that tears now and then. It changes straight away."
+msgstr ""
+
+msgid "Fetches a new version in the background and checks it against GitHub's checksum. Androidbox then asks before restarting to install it, so it never restarts on its own."
+msgstr ""
+
+msgid "Checks GitHub right away."
+msgstr ""
+
+msgid "Reads the shared list of how well games run from GitHub once a day, shows it on the Apps page and offers a game's setup the first time you open it. Nothing is sent."
+msgstr ""
+
+msgid "Lets Claude Code on this PC tap, type, take screenshots and install apps on your running instances to test them, as an MCP server or through a helper script in your Androidbox folder."
+msgstr ""
+
+msgid "This PC"
+msgstr ""
+
+msgid "Keep running in the tray"
+msgstr ""
+
+msgid "Closing the window hides Androidbox and leaves Android running, so idle games keep going. Quit from the tray icon."
+msgstr ""
+
+msgid "Start with Windows"
+msgstr ""
+
+msgid "Start when you sign in"
+msgstr ""
+
+msgid "Opens Androidbox in the tray when you sign in, and starts the instances set to start with Androidbox."
+msgstr ""
+
+msgid "Boss key"
+msgstr ""
+
+msgid "A shortcut that works in any program. It hides every Androidbox window and mutes Android, and brings them back when you press it again. It needs Ctrl, Alt, Shift or Win with a key."
+msgstr ""
+
+msgid "Where Androidbox keeps its files"
+msgstr ""
+
+msgid "Android images, instances and profiles. Move them to another drive if this one is running out of space."
+msgstr ""
+
+msgid "Move…"
+msgstr ""
+
+msgid "Default location for new instances"
+msgstr ""
+
+msgid "The same folder as Androidbox itself"
+msgstr ""
+
+msgid "Where a new instance's files go unless you pick somewhere else while creating it. Good for keeping big games off a small system drive."
+msgstr ""
+
+msgid "Choose…"
+msgstr ""
+
+msgid "Default"
+msgstr ""
+
+msgid "Download mirrors"
+msgstr ""
+
+msgid "Google only"
+msgstr ""
+
+msgid "Other sources for Android images and tools when Google's servers are slow or blocked. Downloads are still verified against their checksums."
+msgstr ""
+
+msgid "Edit…"
+msgstr ""
+
+msgid "Keyboard shortcuts"
+msgstr ""
+
+msgid "Full screen"
+msgstr ""
+
+msgid "Record the screen"
+msgstr ""
+
+msgid "Game controls on or off"
+msgstr ""
+
+msgid "Edit game controls"
+msgstr ""
+
+msgid "Record a macro"
+msgstr ""
+
+msgid "Open in its own window"
+msgstr ""
+
+msgid "Back in Android"
+msgstr ""
+
+msgid "A profile keeps your game controls, macros, presets and preferences together. Switch profiles to swap all of them at once, or sync one between PCs."
+msgstr ""
+
+msgid "New profile"
+msgstr ""
+
+msgid "Import a profile"
+msgstr ""
+
+msgid "Your profiles"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Switch"
+msgstr ""
+
+msgid "Rename"
+msgstr ""
+
+msgid "Duplicate"
+msgstr ""
+
+msgid "Export"
+msgstr ""
+
+msgid "Sync between PCs"
+msgstr ""
+
+msgid "Pick a folder that OneDrive, Dropbox, Google Drive or Syncthing keeps up to date. Androidbox stores your profiles there, so every PC using the same folder shares them. Androidbox never uploads anything itself, and your instances and their apps stay on each PC."
+msgstr ""
+
+msgid "Choose a folder"
+msgstr ""
+
+msgid "Change folder"
+msgstr ""
+
+msgid "Stop syncing"
+msgstr ""
+
+msgid "How well games run on Androidbox, from people who checked them. Use a game's setup to start with its frame rate and controls, or add a game you've checked."
+msgstr ""
+
+msgid "The game list is off, so Androidbox doesn't read it from GitHub."
+msgstr ""
+
+msgid "Turn it on"
+msgstr ""
+
+msgid "Reading the list from GitHub…"
+msgstr ""
+
+msgid "Not read from GitHub yet."
+msgstr ""
+
+msgid "Add a game"
+msgstr ""
+
+msgid "Nothing to show yet. The list downloads from GitHub the first time you open it, and is kept for when you're offline."
+msgstr ""
+
+msgid "Search games"
+msgstr ""
+
+msgid "No games match."
+msgstr ""
+
+msgid "Every game"
+msgstr ""
+
+msgid "Works"
+msgstr ""
+
+msgid "Works with a setup"
+msgstr ""
+
+msgid "Has a setup"
+msgstr ""
+
+msgid "Installed here"
+msgstr ""
+
+msgid "Your instances"
+msgstr ""
+
+msgid "Create desktop shortcut"
+msgstr ""
+
+msgid "Android is off"
+msgstr ""
+
+msgid "Start it to use your apps and games. Drop APK files here to install them."
+msgstr ""
+
+msgid "Shutting down…"
+msgstr ""
+
+msgid "Android is saving its state so it resumes quickly next time."
+msgstr ""
+
+msgid "Android stopped unexpectedly"
+msgstr ""
+
+msgid "The log may say why. Starting again usually fixes it."
+msgstr ""
+
+msgid "Connecting…"
+msgstr ""
+
+msgid "Android is running. Connecting to its screen."
+msgstr ""
+
+msgid "Tip"
+msgstr ""
+
+msgid "Bring it back"
+msgstr ""
+
+msgid "Open log"
+msgstr ""
+
+msgid "Save diagnostics"
+msgstr ""
+
+msgid "Install apps…"
+msgstr ""
+
+msgid "Add files to Downloads…"
+msgstr ""
+
+msgid "Save files from Android to your PC…"
+msgstr ""
+
+msgid "Set location…"
+msgstr ""
+
+msgid "Eco mode: lower FPS and CPU use"
+msgstr ""
+
+msgid "Sync input to every running instance"
+msgstr ""
+
+msgid "Keep Androidbox on top of other windows"
+msgstr ""
+
+msgid "Search everything…    Ctrl+K"
+msgstr ""
+
+msgid "Saved states"
+msgstr ""
+
+msgid "Save the current state"
+msgstr ""
+
+msgid "Keeps this instance exactly as it is, apps, data and screen, so you can come back to this moment. Android has to be running."
+msgstr ""
+
+msgid "Save…"
+msgstr ""
+
+msgid "Go back to a saved state"
+msgstr ""
+
+msgid "Loads one you saved earlier. Anything done since is lost."
+msgstr ""
+
+msgid "None saved yet"
+msgstr ""
+
+msgid "Load"
+msgstr ""
+
+msgid "Keep"
+msgstr ""
+
+msgid "Save as a preset"
+msgstr ""
+
+msgid "Keeps this instance's processor, memory, display, frame rate and extras in your profile, so a new instance can start the same way on any PC that uses it."
+msgstr ""
+
+msgid "Back up this instance"
+msgstr ""
+
+msgid "Saves its apps, data and settings to one file you can restore from All instances."
+msgstr ""
+
+msgid "Troubleshooting"
+msgstr ""
+
+msgid "Diagnostics"
+msgstr ""
+
+msgid "Saves Android's log, this instance's settings and a plain summary of anything that looks wrong, such as an ARM translator crash, to one zip. Useful to attach to a bug report."
+msgstr ""
+
+msgid "image"
+msgstr ""
+
+msgid "Gets this instance's Android system image from Google again. Worth trying if Android reports it isn't Play Protect certified, or otherwise seems broken."
+msgstr ""
+
+msgid "Redownload"
+msgstr ""
+
+msgid "Danger zone"
+msgstr ""
+
+msgid "Factory reset"
+msgstr ""
+
+msgid "Erase all apps and data, like a new phone."
+msgstr ""
+
+msgid "Delete instance"
+msgstr ""
+
+msgid "Remove this instance and everything in it."
+msgstr ""
+
+msgid "Androidbox {version} is ready"
+msgstr ""
+
+msgid "Androidbox saves your Androids, installs the update and opens again. Windows may ask for permission first."
+msgstr ""
+
+msgid "Later"
+msgstr ""
+
+msgid "Restart and update"
+msgstr ""
+
+msgid "Routes all of this instance's traffic through a proxy: host:port or user:pass@host:port for HTTP, or socks5://user:pass@host:port for SOCKS5. Good for giving each instance its own IP. Blank means none. Applies the next time Android starts."
+msgstr ""
+
+msgid "Opens this game again whenever it closes or crashes, which suits idle and farming games. Use its package name, shown on the Apps page. Blank means off."
+msgstr ""
+
+msgid "Androidbox starts this instance at this time, 24-hour like 08:30. It has to be open, in the tray is fine. Blank means never."
+msgstr ""
+
+msgid "Shuts this instance down at this time. Blank means never."
+msgstr ""
+
+msgid "Play with a keyboard, mouse or controller. Place controls on the screen and Androidbox touches there for you. Every game keeps its own layout."
+msgstr ""
+
+msgid "Start Android and open a game to set up its controls."
+msgstr ""
+
+msgid "Edit on screen"
+msgstr ""
+
+msgid "Clear"
+msgstr ""
+
+msgid "Import…"
+msgstr ""
+
+msgid "Export…"
+msgstr ""
+
+msgid "Starter layouts"
+msgstr ""
+
+msgid "Current app"
+msgstr ""
+
+msgid "Use game controls"
+msgstr ""
+
+msgid "Turn this off to type normally in games that have controls."
+msgstr ""
+
+msgid "Show key hints"
+msgstr ""
+
+msgid "Draw your controls on top of the game."
+msgstr ""
+
+msgid "This game"
+msgstr ""
+
+msgid "Controls you can add"
+msgstr ""
+
+msgid "Tap"
+msgstr ""
+
+msgid "Click the screen while editing, then press a key or controller button"
+msgstr ""
+
+msgid "Joystick"
+msgstr ""
+
+msgid "Moves with WASD, the D-pad or the left stick. Select it and press four keys to rebind"
+msgstr ""
+
+msgid "Aim"
+msgstr ""
+
+msgid "Shooter mode: its key locks the mouse, and moving the mouse turns the camera"
+msgstr ""
+
+msgid "Look"
+msgstr ""
+
+msgid "Like Aim, but only while you hold its key"
+msgstr ""
+
+msgid "Fire and Scope"
+msgstr ""
+
+msgid "Taps for the left and right mouse buttons while aiming"
+msgstr ""
+
+msgid "Skill"
+msgstr ""
+
+msgid "MOBA casting: hold the key, point with the mouse, release to cast"
+msgstr ""
+
+msgid "Turbo"
+msgstr ""
+
+msgid "Hold the key to tap the same spot rapidly"
+msgstr ""
+
+msgid "Hold"
+msgstr ""
+
+msgid "Press once to hold a spot down, again to let go. For sprint and auto-run"
+msgstr ""
+
+msgid "Swipe"
+msgstr ""
+
+msgid "One key performs a drag along an arrow you place"
+msgstr ""
+
+msgid "Tilt"
+msgstr ""
+
+msgid "Keys tip the device, like steering a wheel. For racing games. The left stick tilts too"
+msgstr ""
+
+msgid "Macro"
+msgstr ""
+
+msgid "One key plays a macro you recorded, and stops it if you press it again"
+msgstr ""
+
+msgid "Zoom"
+msgstr ""
+
+msgid "Hold Ctrl and scroll to pinch in and out, no setup needed"
+msgstr ""
+
+msgid "Mouse, keyboard and controller"
+msgstr ""
+
+msgid "Left-click taps, drag swipes, the scroll wheel scrolls"
+msgstr ""
+
+msgid "Right-click goes Back, middle-click goes Home"
+msgstr ""
+
+msgid "Controllers navigate Android too: A is Enter, B is Back, Start is Home"
+msgstr ""
+
+msgid "Drop APK or XAPK files on the screen to install them"
+msgstr ""
+
+msgid "Record taps, swipes and key presses once, then replay them as often as you like. Macros belong to your profile, so they follow it to every instance and PC."
+msgstr ""
+
+msgid "Stop recording"
+msgstr ""
+
+msgid "No macros yet. Record one, and it shows up here."
+msgstr ""
+
+msgid "Saved"
+msgstr ""
+
+msgid "Apps and games"
+msgstr ""
+
+msgid "What's installed on {name}. Open one, give a game its own frame rate, or put a shortcut to it on your desktop."
+msgstr ""
+
+msgid "Start Android to see what's installed."
+msgstr ""
+
+msgid "Looking at what's installed…"
+msgstr ""
+
+msgid "Search apps"
+msgstr ""
+
+msgid "Install APK…"
+msgstr ""
+
+msgid "Manage profiles…"
+msgstr ""
+
+msgid "Settings for {name}, which runs {android}. Hardware changes apply the next time it starts."
+msgstr ""
+
+msgid "Search everything"
+msgstr ""
+
+msgid "Try: screenshot, proxy, start, saved state"
+msgstr ""
+
+msgid "Go to {page}"
+msgstr ""
+
+msgid "Page"
+msgstr ""
+
+msgid "Instance"
+msgstr ""
+
+msgid "Open {name}"
+msgstr ""
+
+msgid "Start {name}"
+msgstr ""
+
+msgid "Stop {name}"
+msgstr ""
+
+msgid "Silences this instance's media and notification sounds, so a game in the background stays quiet."
+msgstr ""
+
+msgid "Close Androidbox?"
+msgstr ""
+
+msgid "Android is currently running ({count}). Choose whether to minimize to the tray or shut down and exit."
+msgstr ""
+
+msgid "Choose whether to minimize Androidbox to the background tray or shut down and exit."
+msgstr ""
+
+msgid "Minimize to tray"
+msgstr ""
+
+msgid "Shut down & exit"
+msgstr ""
+
+msgid "Androidbox is still running"
+msgstr ""
+
+msgid "Open it again from the tray icon. Quit from there to shut Android down."
+msgstr ""
+
+msgid "Your profile: game controls, macros, presets and preferences"
+msgstr ""
+
+msgid "Other places to get Android from when Google's servers are slow or blocked, one web address per line. They're tried in order after Google. Downloads are still checked against the checksums in the package list, whichever source they came from. Example: https://mirrors.cloud.tencent.com/AndroidSDK/"
+msgstr ""
+
+msgid "{name} is showing in a separate window."
+msgstr ""
+
+msgid "Starting Android…"
+msgstr ""
+
+msgid "This takes a few seconds, or up to a minute on the very first start."
+msgstr ""
+
+msgid "Mute this instance: media and notifications"
+msgstr ""
+
+msgid "Rotate  (Ctrl+Shift+O)"
+msgstr ""
+
+msgid "Full screen  (F11)"
+msgstr ""
+
+msgid "Open in its own window  (Ctrl+Shift+W)"
+msgstr ""
+
+msgid "Put back in the main window  (Ctrl+Shift+W)"
+msgstr ""
+
+msgid "Game controls on/off  (Ctrl+Shift+K)"
+msgstr ""
+
+msgid "Edit game controls  (Ctrl+Shift+E)"
+msgstr ""
+
+msgid "Record a macro  (Ctrl+Shift+M)"
+msgstr ""
+
+msgid "Screenshot  (Ctrl+Shift+S)"
+msgstr ""
+
+msgid "Record the screen  (Ctrl+Shift+R)"
+msgstr ""
+
+msgid "Inspector: saved states, automation, network  (Ctrl+I)"
+msgstr ""
+
+msgid "More tools"
+msgstr ""
+
+msgid "Frame rate: same as instance"
+msgstr ""
+
+msgid "controls set up"
+msgstr ""
+
+msgid "running"
+msgstr ""
+
+msgid "Use the game list setup"
+msgstr ""
+
+msgid "Game list notes"
+msgstr ""
+
+msgid "Force stop"
+msgstr ""
+
+msgid "Share to the game list…"
+msgstr ""
+
+msgid "Clear data"
+msgstr ""
+
+msgid "Uninstall"
+msgstr ""
+
+msgid "No apps match that search."
+msgstr ""
+
+msgid "Installed"
+msgstr ""
+
+msgid "Switch language"
+msgstr ""
+
+msgid "Open Androidbox"
+msgstr ""
+
+msgid "Quit Androidbox"
+msgstr ""

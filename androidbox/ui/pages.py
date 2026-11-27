@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFra
                                QKeySequenceEdit, QLabel, QLineEdit, QMenu, QPlainTextEdit, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import VERSION, claude, diagnostics, gamelist, installer, instances, keymap, macros, native, paths, profiles, system, vision
+from .. import VERSION, claude, diagnostics, gamelist, i18n, installer, instances, keymap, macros, native, paths, profiles, system, vision
 from .controller import plural, volume_text
 from .inspector import Inspector
 from .phone import PhoneView
@@ -152,8 +152,16 @@ def pair(title, text):
     return line
 
 
+class _NoWheelComboBox(QComboBox):
+    def wheelEvent(self, event):
+        if self.view().isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+
 def choice(options, current):
-    combo = QComboBox()
+    combo = _NoWheelComboBox()
     for text, value in options:
         combo.addItem(text, value)
     combo.setCurrentIndex(max(0, combo.findData(current)))
@@ -238,24 +246,24 @@ class StateView(QWidget):
             self.actions.takeAt(0).widget().deleteLater()
         state = controller.state
         if popped:
-            title, text = "Open in its own window", f"{controller.instance.name} is showing in a separate window."
+            title, text = i18n.t("Open in its own window"), i18n.t("{name} is showing in a separate window.", name=controller.instance.name)
         elif state == "booting":
-            title, text = "Starting Android…", "This takes a few seconds, or up to a minute on the very first start."
+            title, text = i18n.t("Starting Android…"), i18n.t("This takes a few seconds, or up to a minute on the very first start.")
         elif state == "stopping":
-            title, text = "Shutting down…", "Android is saving its state so it resumes quickly next time."
+            title, text = i18n.t("Shutting down…"), i18n.t("Android is saving its state so it resumes quickly next time.")
         elif state == "crashed":
-            title, text = "Android stopped unexpectedly", "The log may say why. Starting again usually fixes it."
+            title, text = i18n.t("Android stopped unexpectedly"), i18n.t("The log may say why. Starting again usually fixes it.")
             reason = self.crash_reason(controller.instance)
             if reason:
                 text = f"{reason[0]}. {reason[1]}"
         elif state == "on":
-            title, text = "Connecting…", "Android is running. Connecting to its screen."
+            title, text = i18n.t("Connecting…"), i18n.t("Android is running. Connecting to its screen.")
         else:
-            title, text = "Android is off", "Start it to use your apps and games. Drop APK files here to install them."
+            title, text = i18n.t("Android is off"), i18n.t("Start it to use your apps and games. Drop APK files here to install them.")
         self.title.setText(title)
         self.text.setText(text)
         # A different tip each day, only where there is room for one
-        self.tip.setText(f"Tip: {TIPS[time.localtime().tm_yday % len(TIPS)]}" if state in ("off", "crashed")
+        self.tip.setText(f"{i18n.t('Tip')}: {i18n.t(TIPS[time.localtime().tm_yday % len(TIPS)])}" if state in ("off", "crashed")
                          and not popped else "")
         busy = state in ("booting", "stopping", "on") and not popped
         self.bar.setVisible(busy)
@@ -265,12 +273,12 @@ class StateView(QWidget):
             self.bar.timer.stop()
         recolor(self.badge, "danger" if state == "crashed" and not popped else "surface")
         if popped:
-            self.actions.addWidget(button("Bring it back", self.host.toggle_popout, size="large"))
+            self.actions.addWidget(button(i18n.t("Bring it back"), self.host.toggle_popout, size="large"))
         elif state in ("off", "crashed"):
-            self.actions.addWidget(button("Start Android", controller.start, size="large"))
+            self.actions.addWidget(button(i18n.t("Start Android"), controller.start, size="large"))
         if state == "crashed" and not popped:
-            self.actions.addWidget(button("Open log", controller.open_log, kind="secondary", size="large"))
-            self.actions.addWidget(button("Save diagnostics", lambda: self.host.collect_diagnostics(controller),
+            self.actions.addWidget(button(i18n.t("Open log"), controller.open_log, kind="secondary", size="large"))
+            self.actions.addWidget(button(i18n.t("Save diagnostics"), lambda: self.host.collect_diagnostics(controller),
                                           kind="secondary", size="large"))
 
 
@@ -351,21 +359,21 @@ class ControlsPage(Page):
     def refresh(self, controller):
         self.clear()
         prefs = self.host.prefs
-        self.intro("Game controls", "Play with a keyboard, mouse or controller. Place controls on the screen and "
-                                    "Androidbox touches there for you. Every game keeps its own layout.")
+        self.intro(i18n.t("Game controls"), i18n.t("Play with a keyboard, mouse or controller. Place controls on the screen and "
+                                    "Androidbox touches there for you. Every game keeps its own layout."))
         package = controller.package if controller.on else None
         controls = keymap.load(package) if package else []
-        current = label(package or "Start Android and open a game to set up its controls.",
+        current = label(package or i18n.t("Start Android and open a game to set up its controls."),
                         "Subheading" if package else "Muted", wrap=True)
-        edit = button("Edit on screen", self.host.edit_controls)
+        edit = button(i18n.t("Edit on screen"), self.host.edit_controls)
         edit.setEnabled(bool(package))
-        clear = button("Clear", lambda: self.clear_controls(package), kind="secondary")
+        clear = button(i18n.t("Clear"), lambda: self.clear_controls(package), kind="secondary")
         clear.setEnabled(bool(controls))
-        load = button("Import…", lambda: self.host.import_controls(package), kind="secondary")
+        load = button(i18n.t("Import…"), lambda: self.host.import_controls(package), kind="secondary")
         load.setEnabled(bool(package))
-        share = button("Export…", lambda: self.host.export_controls(package), kind="secondary")
+        share = button(i18n.t("Export…"), lambda: self.host.export_controls(package), kind="secondary")
         share.setEnabled(bool(controls))
-        starters = button("Starter layouts", kind="secondary")
+        starters = button(i18n.t("Starter layouts"), kind="secondary")
         starters.setEnabled(bool(package))
         starter_menu = QMenu(starters)
         listed = gamelist.entry(package) if package and self.host.prefs["game_list"] else None
@@ -378,18 +386,18 @@ class ControlsPage(Page):
         starters.setMenu(starter_menu)
         hint = [label(f"The game list has a layout for {listed['name']}. Use it from Starter layouts.", "Muted",
                       wrap=True)] if listed and listed.get("controls") else []
-        self.add(card(label("Current app", "Section"), current, *hint, row(edit, clear, None, starters, load, share)))
+        self.add(card(label(i18n.t("Current app"), "Section"), current, *hint, row(edit, clear, None, starters, load, share)))
 
         enabled = Toggle(prefs["game_controls"])
         enabled.toggled.connect(lambda on: self.host.set_pref("game_controls", on))
         hints = Toggle(prefs["show_hints"])
         hints.toggled.connect(lambda on: self.host.set_pref("show_hints", on))
-        self.add(card(setting("Use game controls", "Turn this off to type normally in games that have controls.",
+        self.add(card(setting(i18n.t("Use game controls"), i18n.t("Turn this off to type normally in games that have controls."),
                               enabled), divider(),
-                      setting("Show key hints", "Draw your controls on top of the game.", hints)))
+                      setting(i18n.t("Show key hints"), i18n.t("Draw your controls on top of the game."), hints)))
 
         if controls:
-            rows = [label("This game", "Section")]
+            rows = [label(i18n.t("This game"), "Section")]
             rows += [pair(control.label(), control.describe()) for control in controls]
             self.add(card(*rows, spacing=8))
 
@@ -406,16 +414,16 @@ class ControlsPage(Page):
                  ("Tilt", "Keys tip the device, like steering a wheel. For racing games. The left stick tilts too"),
                  ("Macro", "One key plays a macro you recorded, and stops it if you press it again"),
                  ("Zoom", "Hold Ctrl and scroll to pinch in and out, no setup needed")]
-        rows = [label("Controls you can add", "Section")]
-        rows += [pair(name, what) for name, what in kinds]
+        rows = [label(i18n.t("Controls you can add"), "Section")]
+        rows += [pair(i18n.t(name), i18n.t(what)) for name, what in kinds]
         self.add(card(*rows, spacing=8))
 
         tips = ["Left-click taps, drag swipes, the scroll wheel scrolls",
                 "Right-click goes Back, middle-click goes Home",
                 "Controllers navigate Android too: A is Enter, B is Back, Start is Home",
                 "Drop APK or XAPK files on the screen to install them"]
-        self.add(card(label("Mouse, keyboard and controller", "Section"),
-                      *[label(f"•  {tip}", "Muted") for tip in tips], spacing=6))
+        self.add(card(label(i18n.t("Mouse, keyboard and controller"), "Section"),
+                      *[label(f"•  {i18n.t(tip)}", "Muted") for tip in tips], spacing=6))
 
     def clear_controls(self, package):
         keymap.save(package, [])
@@ -429,18 +437,18 @@ class MacrosPage(Page):
 
     def refresh(self, controller):
         self.clear()
-        self.intro("Macros", "Record taps, swipes and key presses once, then replay them as often as you like. "
-                             "Macros belong to your profile, so they follow it to every instance and PC.")
+        self.intro(i18n.t("Macros"), i18n.t("Record taps, swipes and key presses once, then replay them as often as you like. "
+                             "Macros belong to your profile, so they follow it to every instance and PC."))
         if controller.recording_macro:
-            record = button("Stop recording", self.host.toggle_macro, kind="danger")
+            record = button(i18n.t("Stop recording"), self.host.toggle_macro, kind="danger")
         else:
-            record = button("Record a macro", self.host.record_macro)
+            record = button(i18n.t("Record a macro"), self.host.record_macro)
         self.add(row(record, None))
         saved = macros.load()
         if not saved:
-            self.add(card(label("No macros yet. Record one, and it shows up here.", "Muted")))
+            self.add(card(label(i18n.t("No macros yet. Record one, and it shows up here."), "Muted")))
             return
-        rows = [label("Saved", "Section")]
+        rows = [label(i18n.t("Saved"), "Section")]
         for number, macro in enumerate(saved):
             if number:
                 rows.append(divider())
@@ -574,13 +582,14 @@ class SettingsPage(Page):
         self.clear()
         host = self.host
         instance = controller.instance
-        self.intro("Settings", f"Settings for {instance.name}, which runs {instance.android}. Hardware changes "
-                               "apply the next time it starts.")
+        self.intro(i18n.t("Settings"),
+                   i18n.t("Settings for {name}, which runs {android}. Hardware changes apply the next time it starts.",
+                          name=instance.name, android=instance.android))
 
         name = QLineEdit(instance.name)
         name.setMaxLength(32)
         name.editingFinished.connect(lambda: host.rename(controller, name.text()))
-        self.add(card(label("Name", "Section"), name))
+        self.add(card(label(i18n.t("Name"), "Section"), name))
 
         cores = choice([(f"{count} cores", count) for count in system.core_options(instance.cores)], instance.cores)
         memory = choice([(f"{size // 1024} GB" if size % 1024 == 0 else f"{size / 1024:.1f} GB", size)
@@ -601,21 +610,23 @@ class SettingsPage(Page):
         disk.currentIndexChanged.connect(lambda: host.set_storage(controller, disk.currentData()))
         restart = []
         if controller.state in ("on", "booting"):
-            restart = [divider(), row(label("Restart Android to use new hardware settings.", "Muted"), None,
-                                      button("Restart", controller.restart, kind="secondary"))]
+            restart = [divider(), row(label(i18n.t("Restart Android to use new hardware settings."), "Muted"), None,
+                                      button(i18n.t("Restart"), controller.restart, kind="secondary"))]
         notes = [label(note, "Muted", wrap=True) for note in instances.hardware_warnings(
             instance, host.instances, system.host_memory(), system.free_gigabytes(instance.folder))]
-        self.add(card(label("Performance", "Section"), *notes,
-                      setting("Processor", "More cores help heavy games.", cores), divider(),
-                      setting("Memory", "4 GB suits most apps and games.", memory), divider(),
-                      setting("Display", "Tablet runs in landscape, which most games prefer.", display), divider(),
-                      setting("Frame rate", "Higher is smoother in games that support it, and uses more power.",
+        self.add(card(label(i18n.t("Performance"), "Section"), *notes,
+                      setting(i18n.t("Processor"), i18n.t("More cores help heavy games."), cores), divider(),
+                      setting(i18n.t("Memory"), i18n.t("4 GB suits most apps and games."), memory), divider(),
+                      setting(i18n.t("Display"), i18n.t("Tablet runs in landscape, which most games prefer."), display), divider(),
+                      setting(i18n.t("Frame rate"), i18n.t("Higher is smoother in games that support it, and uses more power."),
                               rate), divider(),
-                      setting("Graphics", "Your graphics card is fastest. If Android crashes while starting, try "
-                                          "Automatic, then Software.", graphics), divider(),
-                      setting("Storage", "Room for apps and games. Big games need 64 GB or more. Changing it erases "
-                                         "this instance's apps and data.", disk), *restart))
+                      setting(i18n.t("Graphics"), i18n.t("Your graphics card is fastest. If Android crashes while starting, try "
+                                          "Automatic, then Software."), graphics), divider(),
+                      setting(i18n.t("Storage"), i18n.t("Room for apps and games. Big games need 64 GB or more. Changing it erases "
+                                         "this instance's apps and data."), disk), *restart))
 
+        language = choice([(label_, code) for code, label_ in i18n.LANGUAGES], host.prefs["language"])
+        language.currentIndexChanged.connect(lambda _, box=language: host.set_language(box.currentData(), box))
         eco = Toggle(instance.eco)
         eco.toggled.connect(controller.set_eco)
         muted = Toggle(instance.muted)
@@ -626,41 +637,42 @@ class SettingsPage(Page):
         webcam.toggled.connect(lambda on: host.set_hardware(controller, camera=on))
         ads = Toggle(instance.block_ads)
         ads.toggled.connect(controller.set_block_ads)
-        browser = button("Set up", lambda: host.set_up_browser(controller), kind="secondary")
+        browser = button(i18n.t("Set up"), lambda: host.set_up_browser(controller), kind="secondary")
         proxy = QLineEdit(instance.proxy)
         proxy.setPlaceholderText("host:port or socks5://host:port")
         proxy.setMaximumWidth(260)
         proxy.editingFinished.connect(lambda: host.set_hardware(controller, proxy=proxy.text().strip()))
-        proxy_test = button("Test", lambda: host.test_proxy(proxy.text().strip()), kind="secondary")
+        proxy_test = button(i18n.t("Test"), lambda: host.test_proxy(proxy.text().strip()), kind="secondary")
         proxy_box = row(proxy, proxy_test)
         network = choice([(label_, key) for key, (label_, _, _) in instances.NETWORK_PROFILES.items()],
                          instance.network)
         network.currentIndexChanged.connect(lambda: controller.set_network(network.currentData()))
-        self.add(card(label("Extras", "Section"),
-                      setting("Eco mode", "Draws fewer frames and lowers Android's CPU priority. Good for "
-                                          "idle games running in the background.", eco), divider(),
-                      setting("Mute", "Silences this instance's media and notification sounds, so a game in the "
-                                     f"background stays quiet. {volume_text(controller.volume)}."
-                              if controller.on and controller.volume else
-                              "Silences this instance's media and notification sounds, so a game in the "
-                              "background stays quiet.", muted), divider(),
-                      setting("Start with Androidbox", "Starts this instance whenever Androidbox opens, including "
+        self.add(card(label(i18n.t("Extras"), "Section"),
+                      setting(i18n.t("Interface language"),
+                              i18n.t("Choose English or Traditional Chinese for the Androidbox interface. Changes apply straight away."),
+                              language), divider(),
+                      setting(i18n.t("Eco mode"), i18n.t("Draws fewer frames and lowers Android's CPU priority. Good for "
+                                          "idle games running in the background."), eco), divider(),
+                      setting(i18n.t("Mute"), i18n.t("Silences this instance's media and notification sounds, so a game in the "
+                                     "background stays quiet.") + (f" {volume_text(controller.volume)}." if controller.on and controller.volume else ""),
+                              muted), divider(),
+                      setting(i18n.t("Start with Androidbox"), "Starts this instance whenever Androidbox opens, including "
                                                        f"when {system.SIGN_IN_NAME} starts it.", autostart), divider(),
-                      setting("Webcam", "Lets Android apps use your PC's webcam as their camera. Applies the "
-                                        "next time Android starts.", webcam), divider(),
-                      setting("Block ads", "Blocks ad networks inside apps and games. It can't remove ads that "
-                                           "come from the same servers as the content, like YouTube's.", ads),
+                      setting(i18n.t("Webcam"), i18n.t("Lets Android apps use your PC's webcam as their camera. Applies the "
+                                        "next time Android starts."), webcam), divider(),
+                      setting(i18n.t("Block ads"), i18n.t("Blocks ad networks inside apps and games. It can't remove ads that "
+                                           "come from the same servers as the content, like YouTube's."), ads),
                       divider(),
-                      setting("Ad-free browser", "Installs Firefox and uBlock Origin, which blocks ads on every "
-                                                 "website, YouTube included.", browser), divider(),
-                      setting("Network proxy", "Routes all of this instance's traffic through a proxy: "
+                      setting(i18n.t("Ad-free browser"), i18n.t("Installs Firefox and uBlock Origin, which blocks ads on every "
+                                                 "website, YouTube included."), browser), divider(),
+                      setting(i18n.t("Network proxy"), i18n.t("Routes all of this instance's traffic through a proxy: "
                                                "host:port or user:pass@host:port for HTTP, or "
                                                "socks5://user:pass@host:port for SOCKS5. "
                                                "Good for giving each instance its own IP. Blank means none. "
-                                               "Applies the next time Android starts.",
+                                               "Applies the next time Android starts."),
                               proxy_box), divider(),
-                      setting("Network conditions", "Slows this instance's connection to what a phone would get, "
-                                                    "to see how an app or game copes. Applies right away.",
+                      setting(i18n.t("Network conditions"), i18n.t("Slows this instance's connection to what a phone would get, "
+                                                    "to see how an app or game copes. Applies right away."),
                               network)))
 
         keep = QLineEdit(instance.keep_running)
@@ -674,58 +686,58 @@ class SettingsPage(Page):
             field.setMaximumWidth(120)
             field.editingFinished.connect(lambda key=key, field=field: host.set_time(controller, key, field.text()))
             times[key] = field
-        self.add(card(label("Automation", "Section"),
-                      setting("Keep a game running", "Opens this game again whenever it closes or crashes, which "
+        self.add(card(label(i18n.t("Automation"), "Section"),
+                      setting(i18n.t("Keep a game running"), i18n.t("Opens this game again whenever it closes or crashes, which "
                                                      "suits idle and farming games. Use its package name, shown on "
-                                                     "the Apps page. Blank means off.", keep), divider(),
-                      setting("Start every day at", "Androidbox starts this instance at this time, 24-hour like "
+                                                     "the Apps page. Blank means off."), keep), divider(),
+                      setting(i18n.t("Start every day at"), i18n.t("Androidbox starts this instance at this time, 24-hour like "
                                                     "08:30. It has to be open, in the tray is fine. Blank means "
-                                                    "never.", times["start_at"]), divider(),
-                      setting("Stop every day at", "Shuts this instance down at this time. Blank means never.",
+                                                    "never."), times["start_at"]), divider(),
+                      setting(i18n.t("Stop every day at"), i18n.t("Shuts this instance down at this time. Blank means never."),
                               times["stop_at"])))
 
         saved = controller.emulator.snapshots()
-        states = choice([(name, name) for name in saved] or [("None saved yet", "")], saved[0] if saved else "")
+        states = choice([(name, name) for name in saved] or [(i18n.t("None saved yet"), "")], saved[0] if saved else "")
         states.setEnabled(bool(saved))
-        load = button("Load", lambda: host.load_snapshot(controller, states.currentData()), kind="secondary")
+        load = button(i18n.t("Load"), lambda: host.load_snapshot(controller, states.currentData()), kind="secondary")
         load.setEnabled(bool(saved))
-        remove = button("Delete", lambda: host.delete_snapshot(controller, states.currentData()), kind="secondary")
+        remove = button(i18n.t("Delete"), lambda: host.delete_snapshot(controller, states.currentData()), kind="secondary")
         remove.setEnabled(bool(saved))
-        take = button("Save…", lambda: host.save_snapshot(controller), kind="secondary")
-        self.add(card(label("Saved states", "Section"),
-                      setting("Save the current state", "Keeps this instance exactly as it is, apps, data and "
+        take = button(i18n.t("Save…"), lambda: host.save_snapshot(controller), kind="secondary")
+        self.add(card(label(i18n.t("Saved states"), "Section"),
+                      setting(i18n.t("Save the current state"), i18n.t("Keeps this instance exactly as it is, apps, data and "
                                                         "screen, so you can come back to this moment. Android has "
-                                                        "to be running.", take), divider(),
-                      setting("Go back to a saved state", "Loads one you saved earlier. Anything done since is "
-                                                          "lost.", row(states, load, remove))))
+                                                        "to be running."), take), divider(),
+                      setting(i18n.t("Go back to a saved state"), i18n.t("Loads one you saved earlier. Anything done since is "
+                                                          "lost."), row(states, load, remove))))
 
-        preset = button("Save…", lambda: host.save_preset(controller), kind="secondary")
-        backup = button("Back up", lambda: host.back_up(controller), kind="secondary")
-        self.add(card(label("Keep", "Section"),
-                      setting("Save as a preset", "Keeps this instance's processor, memory, display, frame rate and "
+        preset = button(i18n.t("Save…"), lambda: host.save_preset(controller), kind="secondary")
+        backup = button(i18n.t("Back up"), lambda: host.back_up(controller), kind="secondary")
+        self.add(card(label(i18n.t("Keep"), "Section"),
+                      setting(i18n.t("Save as a preset"), i18n.t("Keeps this instance's processor, memory, display, frame rate and "
                                                   "extras in your profile, so a new instance can start the same way "
-                                                  "on any PC that uses it.", preset), divider(),
-                      setting("Back up this instance", "Saves its apps, data and settings to one file you can "
-                                                       "restore from All instances.", backup)))
+                                                  "on any PC that uses it."), preset), divider(),
+                      setting(i18n.t("Back up this instance"), i18n.t("Saves its apps, data and settings to one file you can "
+                                                       "restore from All instances."), backup)))
 
-        redownload = button("Redownload", lambda: host.redownload_image(controller), kind="secondary")
-        diagnose = button("Save…", lambda: host.collect_diagnostics(controller), kind="secondary")
-        self.add(card(label("Troubleshooting", "Section"),
-                      setting("Diagnostics", "Saves Android's log, this instance's settings and a plain summary of "
+        redownload = button(i18n.t("Redownload"), lambda: host.redownload_image(controller), kind="secondary")
+        diagnose = button(i18n.t("Save…"), lambda: host.collect_diagnostics(controller), kind="secondary")
+        self.add(card(label(i18n.t("Troubleshooting"), "Section"),
+                      setting(i18n.t("Diagnostics"), i18n.t("Saves Android's log, this instance's settings and a plain summary of "
                                              "anything that looks wrong, such as an ARM translator crash, to one "
-                                             "zip. Useful to attach to a bug report.", diagnose), divider(),
-                      setting(f"{instance.android} image", "Gets this instance's Android system image from Google "
+                                             "zip. Useful to attach to a bug report."), diagnose), divider(),
+                      setting(f"{instance.android} {i18n.t('image')}", i18n.t("Gets this instance's Android system image from Google "
                                                             "again. Worth trying if Android reports it isn't Play "
-                                                            "Protect certified, or otherwise seems broken.",
+                                                            "Protect certified, or otherwise seems broken."),
                               redownload)))
 
-        reset = button("Factory reset", lambda: confirm(
-            host.dialog_parent(), "Factory reset", f"Erase every app and all data on {instance.name}? "
+        reset = button(i18n.t("Factory reset"), lambda: confirm(
+            host.dialog_parent(), i18n.t("Factory reset"), f"Erase every app and all data on {instance.name}? "
             "This can't be undone.", "Erase everything", controller.factory_reset, danger=True), kind="danger")
-        delete = button("Delete instance", lambda: host.delete_instance(controller), kind="danger")
-        self.add(card(label("Danger zone", "Section"),
-                      setting("Factory reset", "Erase all apps and data, like a new phone.", reset), divider(),
-                      setting("Delete instance", "Remove this instance and everything in it.", delete)))
+        delete = button(i18n.t("Delete instance"), lambda: host.delete_instance(controller), kind="danger")
+        self.add(card(label(i18n.t("Danger zone"), "Section"),
+                      setting(i18n.t("Factory reset"), i18n.t("Erase all apps and data, like a new phone."), reset), divider(),
+                      setting(i18n.t("Delete instance"), i18n.t("Remove this instance and everything in it."), delete)))
         self.add_finder()
 
 
@@ -754,16 +766,18 @@ class InstancesPage(Page):
     def refresh(self):
         self.clear()
         host = self.host
-        self.intro("Instances", "Run several Androids side by side. Each has its own apps, accounts and settings.")
+        self.intro(i18n.t("Instances"),
+                   f"Androidbox v{VERSION}  ·  " +
+                   i18n.t("Run several Androids side by side. Each has its own apps, accounts and settings."))
         running = any(c.state not in ("off", "crashed") for c in host.controllers.values())
-        stop_all = button("Stop all", host.stop_all, kind="secondary")
+        stop_all = button(i18n.t("Stop all"), host.stop_all, kind="secondary")
         stop_all.setEnabled(running)
-        start_all = button("Start all", host.start_all, kind="secondary")
+        start_all = button(i18n.t("Start all"), host.start_all, kind="secondary")
         start_all.setEnabled(any(c.state in ("off", "crashed") for c in host.controllers.values()))
-        tile = button("Side by side", host.arrange, kind="secondary")
+        tile = button(i18n.t("Side by side"), host.arrange, kind="secondary")
         tile.setEnabled(any(c.on for c in host.controllers.values()))
-        self.add(row(button("New instance", host.new_instance, kind="secondary" if host.controllers else None),
-                     button("Restore a backup", host.restore_backup, kind="secondary"), tile, start_all, stop_all,
+        self.add(row(button(i18n.t("New instance"), host.new_instance, kind="secondary" if host.controllers else None),
+                     button(i18n.t("Restore a backup"), host.restore_backup, kind="secondary"), tile, start_all, stop_all,
                      None))
         tiles = []
         self.live = []
@@ -778,25 +792,25 @@ class InstancesPage(Page):
             stats = label("", "Small")
             self.live.append((controller, thumb, stats))
             words = column(label(instance.name, "Subheading"),
-                           label(f"<span style='color:{color}'>●</span>  {STATES.get(controller.state, 'Off')}",
+                           label(f"<span style='color:{color}'>●</span>  {i18n.t(STATES.get(controller.state, 'Off'))}",
                                  "Muted"),
                            label(f"{instance.android}  ·  {instance.resolution}", "Small"),
                            label(f"{instance.cores} cores  ·  {instance.ram // 1024} GB  ·  {instance.fps} FPS",
                                  "Small"), stats, spacing=2)
             if controller.state in ("off", "crashed"):
-                power = button("Start", controller.start)
+                power = button(i18n.t("Start"), controller.start)
             else:
-                power = button("Stop", controller.stop, kind="secondary")
+                power = button(i18n.t("Stop"), controller.stop, kind="secondary")
                 power.setEnabled(controller.state != "stopping")
             more = menu_button([
-                ("Open in its own window", lambda c=controller: host.pop_out(c)),
-                ("Create desktop shortcut", lambda c=controller: host.shortcut_for(c)),
-                ("Clone", lambda c=controller: host.clone_instance(c)),
-                ("Back up", lambda c=controller: host.back_up(c)),
+                (i18n.t("Open in its own window"), lambda c=controller: host.pop_out(c)),
+                (i18n.t("Create desktop shortcut"), lambda c=controller: host.shortcut_for(c)),
+                (i18n.t("Clone"), lambda c=controller: host.clone_instance(c)),
+                (i18n.t("Back up"), lambda c=controller: host.back_up(c)),
                 (None, None),
-                ("Delete", lambda c=controller: host.delete_instance(c)),
+                (i18n.t("Delete"), lambda c=controller: host.delete_instance(c)),
             ])
-            actions = row(power, button("Open", lambda c=controller: host.select(c.instance.id), kind="secondary"),
+            actions = row(power, button(i18n.t("Open"), lambda c=controller: host.select(c.instance.id), kind="secondary"),
                           None, more, spacing=8)
             tiles.append(card(row(thumb, column(words, None, actions, spacing=10), spacing=14), spacing=0))
         if tiles:
@@ -808,7 +822,7 @@ class InstancesPage(Page):
                 layout.addWidget(tile_card, index // 2, index % 2)
             layout.setColumnStretch(0, 1)
             layout.setColumnStretch(1, 1)
-            self.add(label(f"Your instances · {len(tiles)}", "Section"), grid)
+            self.add(label(f"{i18n.t('Your instances')} · {len(tiles)}", "Section"), grid)
             self.update_live()
         else:
             self.add(card(label("Start your first instance", "Heading"),
@@ -824,6 +838,8 @@ class InstancesPage(Page):
         compact.toggled.connect(lambda on: host.set_pref("compact_tools", on))
         look = choice(theme.NAMES, host.prefs["theme"])
         look.currentIndexChanged.connect(lambda _, box=look: host.set_theme(box.currentData(), box))
+        language = choice([(label_, code) for code, label_ in i18n.LANGUAGES], host.prefs["language"])
+        language.currentIndexChanged.connect(lambda _, box=language: host.set_language(box.currentData(), box))
         updates = Toggle(host.prefs["check_updates"])
         updates.toggled.connect(lambda on: host.set_pref("check_updates", on))
         automatic = Toggle(host.prefs["auto_update"] and system.can_update())
@@ -834,38 +850,41 @@ class InstancesPage(Page):
         shared_list.toggled.connect(lambda on: host.set_pref("game_list", on))
         access = Toggle(host.prefs["claude_access"])
         access.toggled.connect(lambda on: host.set_pref("claude_access", on))
-        self.add(card(label("Everywhere", "Section"),
-                      setting("Sync input", "Mirror taps and keys from the instance you're using to every other "
-                                            "running instance. Best when they use the same display setting.", sync),
+        self.add(card(label(i18n.t("Everywhere"), "Section"),
+                      setting(i18n.t("Sync input"), i18n.t("Mirror taps and keys from the instance you're using to every other "
+                                            "running instance. Best when they use the same display setting."), sync),
                       divider(),
-                      setting("Show FPS and system use", "Show frames per second in the corner of the screen, with how "
-                                                         "much processor and memory the emulator is using.", fps),
+                      setting(i18n.t("Show FPS and system use"), i18n.t("Show frames per second in the corner of the screen, with how "
+                                                         "much processor and memory the emulator is using."), fps),
                       divider(),
-                      setting("Compact toolbar", "Make the row of tool buttons under the screen smaller.",
+                      setting(i18n.t("Compact toolbar"), i18n.t("Make the row of tool buttons under the screen smaller."),
                               compact), divider(),
-                      setting("Theme", "Classic is the default. Glitch matches wolklaw.dev: indigo, mint, sharp "
+                      setting(i18n.t("Theme"), i18n.t("Classic is the default. Glitch matches wolklaw.dev: indigo, mint, sharp "
                                        "corners and a magenta and cyan split that tears now and then. It changes "
-                                       "straight away.", look), divider(),
-                      setting("Check for updates", f"You're on Androidbox {VERSION}. Androidbox asks GitHub when it "
+                                       "straight away."), look), divider(),
+                      setting(i18n.t("Interface language"),
+                              i18n.t("Choose English or Traditional Chinese for the Androidbox interface. Changes apply straight away."),
+                              language), divider(),
+                      setting(i18n.t("Check for updates"), f"You're on Androidbox {VERSION}. Androidbox asks GitHub when it "
                                                    "starts, and every few hours while it runs, whether a newer "
                                                    "version is out." + ("" if native.WINDOWS else
                                                    " It only tells you: on SparkOS a new version arrives with the "
                                                    "system's own updates."), updates), divider(),
-                      setting("Download updates automatically", "Fetches a new version in the background and checks "
+                      setting(i18n.t("Download updates automatically"), i18n.t("Fetches a new version in the background and checks "
                                                                 "it against GitHub's checksum. Androidbox then asks "
                                                                 "before restarting to install it, so it never "
-                                                                "restarts on its own." + ("" if system.can_update() else
+                                                                "restarts on its own.") + ("" if system.can_update() else
                                                                 " Only the installed app can do this."),
                               automatic), divider(),
-                      setting("Look for an update now", "Checks GitHub right away.", check_now), divider(),
-                      setting("Game list", "Reads the shared list of how well games run from GitHub once a day, "
+                      setting(i18n.t("Look for an update now"), i18n.t("Checks GitHub right away."), check_now), divider(),
+                      setting(i18n.t("Game list"), i18n.t("Reads the shared list of how well games run from GitHub once a day, "
                                            "shows it on the Apps page and offers a game's setup the first time you "
-                                           "open it. Nothing is sent.", shared_list), divider(),
-                      setting("Let Claude Code control Android", "Lets Claude Code on this PC tap, type, take "
+                                           "open it. Nothing is sent."), shared_list), divider(),
+                      setting(i18n.t("Let Claude Code control Android"), i18n.t("Lets Claude Code on this PC tap, type, take "
                                                                   "screenshots and install apps on your running "
                                                                   "instances to test them, as an MCP server or "
                                                                   "through a helper script in your Androidbox "
-                                                                  "folder.", access)))
+                                                                  "folder."), access)))
 
         tray = Toggle(host.prefs["close_to_tray"])
         tray.toggled.connect(lambda on: host.set_pref("close_to_tray", on))
@@ -877,44 +896,44 @@ class InstancesPage(Page):
         boss.setFixedWidth(170)
         boss.setEnabled(native.WINDOWS)
         boss.editingFinished.connect(lambda: host.set_boss_key(boss.keySequence().toString()))
-        move = button("Move…", host.move_files, kind="secondary")
+        move = button(i18n.t("Move…"), host.move_files, kind="secondary")
         default_storage = host.prefs["default_storage_path"]
-        choose_storage = button("Choose…", host.choose_default_storage, kind="secondary")
-        default_storage_default = button("Default", host.clear_default_storage, kind="secondary")
-        self.add(card(label("This PC", "Section"),
-                      setting("Keep running in the tray", "Closing the window hides Androidbox and leaves Android "
+        choose_storage = button(i18n.t("Choose…"), host.choose_default_storage, kind="secondary")
+        default_storage_default = button(i18n.t("Default"), host.clear_default_storage, kind="secondary")
+        self.add(card(label(i18n.t("This PC"), "Section"),
+                      setting(i18n.t("Keep running in the tray"), i18n.t("Closing the window hides Androidbox and leaves Android "
                                                           "running, so idle games keep going. Quit from the tray "
-                                                          "icon.", tray), divider(),
-                      setting("Start with Windows" if native.WINDOWS else "Start when you sign in",
-                              "Opens Androidbox in the tray when you sign in, and starts the "
-                              "instances set to start with Androidbox.", windows), divider(),
-                      setting("Boss key", ("A shortcut that works in any program. It hides every Androidbox window "
+                                                          "icon."), tray), divider(),
+                      setting(i18n.t("Start with Windows") if native.WINDOWS else i18n.t("Start when you sign in"),
+                              i18n.t("Opens Androidbox in the tray when you sign in, and starts the "
+                              "instances set to start with Androidbox."), windows), divider(),
+                      setting(i18n.t("Boss key"), i18n.t("A shortcut that works in any program. It hides every Androidbox window "
                                            "and mutes Android, and brings them back when you press it again. It needs "
                                            "Ctrl, Alt, Shift or Win with a key.") if native.WINDOWS else
                               "Windows only: a Linux desktop doesn't let a program listen for a key while another "
                               "program has the keyboard.", boss), divider(),
-                      setting("Where Androidbox keeps its files", f"{paths.HOME}\nAndroid images, instances and "
-                                                                  "profiles. Move them to another drive if this one "
-                                                                  "is running out of space.", move), divider(),
-                      setting("Default location for new instances",
-                              (default_storage or "The same folder as Androidbox itself") +
-                              "\nWhere a new instance's files go unless you pick somewhere else while creating it. "
-                              "Good for keeping big games off a small system drive.",
+                      setting(i18n.t("Where Androidbox keeps its files"), f"{paths.HOME}\n" +
+                              i18n.t("Android images, instances and profiles. Move them to another drive if this one "
+                                     "is running out of space."), move), divider(),
+                      setting(i18n.t("Default location for new instances"),
+                              (default_storage or i18n.t("The same folder as Androidbox itself")) +
+                              "\n" + i18n.t("Where a new instance's files go unless you pick somewhere else while creating it. "
+                              "Good for keeping big games off a small system drive."),
                               row(choose_storage, default_storage_default)), divider(),
-                      setting("Download mirrors",
-                              (f"{len(host.prefs['mirrors'])} added" if host.prefs["mirrors"] else "Google only") +
-                              "\nOther sources for Android images and tools when Google's servers are slow or "
-                              "blocked. Downloads are still verified against their checksums.",
-                              button("Edit…", lambda: host.edit_mirrors(self.refresh), kind="secondary"))))
+                      setting(i18n.t("Download mirrors"),
+                              (f"{len(host.prefs['mirrors'])} added" if host.prefs["mirrors"] else i18n.t("Google only")) +
+                              "\n" + i18n.t("Other sources for Android images and tools when Google's servers are slow or "
+                              "blocked. Downloads are still verified against their checksums."),
+                              button(i18n.t("Edit…"), lambda: host.edit_mirrors(self.refresh), kind="secondary"))))
 
-        shortcuts = [("F11", "Full screen"), ("Ctrl+Shift+S", "Screenshot"), ("Ctrl+Shift+R", "Record the screen"),
-                     ("Ctrl+Shift+K", "Game controls on or off"), ("Ctrl+Shift+E", "Edit game controls"),
-                     ("Ctrl+Shift+M", "Record a macro"), ("Ctrl+Shift+O", "Rotate"),
-                     ("Ctrl+Shift+W", "Open in its own window"), ("Esc", "Back in Android")]
+        shortcuts = [("F11", i18n.t("Full screen")), ("Ctrl+Shift+S", i18n.t("Screenshot")), ("Ctrl+Shift+R", i18n.t("Record the screen")),
+                     ("Ctrl+Shift+K", i18n.t("Game controls on or off")), ("Ctrl+Shift+E", i18n.t("Edit game controls")),
+                     ("Ctrl+Shift+M", i18n.t("Record a macro")), ("Ctrl+Shift+O", i18n.t("Rotate")),
+                     ("Ctrl+Shift+W", i18n.t("Open in its own window")), ("Esc", i18n.t("Back in Android"))]
         lines = [row(label(keys, "Subheading"), label(what, "Muted"), None, spacing=16) for keys, what in shortcuts]
         for line in lines:
             line.layout().itemAt(0).widget().setFixedWidth(140)
-        self.add(card(label("Keyboard shortcuts", "Section"), *lines, spacing=6))
+        self.add(card(label(i18n.t("Keyboard shortcuts"), "Section"), *lines, spacing=6))
 
 
 class ProfilePage(Page):
@@ -925,10 +944,11 @@ class ProfilePage(Page):
     def refresh(self):
         self.clear()
         host = self.host
-        self.intro("Profile", "A profile keeps your game controls, macros, presets and preferences together. "
-                              "Switch profiles to swap all of them at once, or sync one between PCs.")
-        self.add(row(button("New profile", host.new_profile),
-                     button("Import a profile", host.import_profile, kind="secondary"), None))
+        self.intro(i18n.t("Profile"),
+                   i18n.t("A profile keeps your game controls, macros, presets and preferences together. "
+                          "Switch profiles to swap all of them at once, or sync one between PCs."))
+        self.add(row(button(i18n.t("New profile"), host.new_profile),
+                     button(i18n.t("Import a profile"), host.import_profile, kind="secondary"), None))
         current = profiles.active()
         rows = []
         for name in profiles.names():
@@ -936,40 +956,40 @@ class ProfilePage(Page):
             detail = f"{plural(layouts, 'game layout')}  ·  {plural(saved, 'macro')}  ·  {plural(presets, 'preset')}"
             words = column(label(name, "Subheading"), label(detail, "Small"), spacing=2)
             if name == current:
-                status = label("Active", "Small")
+                status = label(i18n.t("Active"), "Small")
                 styled(status, lambda widget: widget.setStyleSheet(f"color: {COLORS['green']};"))
             else:
-                status = button("Switch", lambda n=name: host.switch_profile(n), kind="secondary")
+                status = button(i18n.t("Switch"), lambda n=name: host.switch_profile(n), kind="secondary")
             more = menu_button([
-                ("Rename", lambda n=name: host.rename_profile(n)),
-                ("Duplicate", lambda n=name: host.duplicate_profile(n)),
-                ("Export", lambda n=name: host.export_profile(n)),
+                (i18n.t("Rename"), lambda n=name: host.rename_profile(n)),
+                (i18n.t("Duplicate"), lambda n=name: host.duplicate_profile(n)),
+                (i18n.t("Export"), lambda n=name: host.export_profile(n)),
                 (None, None),
-                ("Delete", lambda n=name: host.delete_profile(n)),
+                (i18n.t("Delete"), lambda n=name: host.delete_profile(n)),
             ])
             rows.append(row(avatar(instances.initials(name), "accent" if name == current else "raised"),
                             words, None, status, more, spacing=10))
-        self.add(card(label(f"Your profiles · {len(rows)}", "Section"), *rows, spacing=12))
+        self.add(card(label(f"{i18n.t('Your profiles')} · {len(rows)}", "Section"), *rows, spacing=12))
         self.add(self.sync_card())
         self.add(self.presets_card(current))
 
     def sync_card(self):
         host = self.host
         folder = profiles.sync_folder()
-        intro = label("Pick a folder that OneDrive, Dropbox, Google Drive or Syncthing keeps up to date. Androidbox "
+        intro = label(i18n.t("Pick a folder that OneDrive, Dropbox, Google Drive or Syncthing keeps up to date. Androidbox "
                       "stores your profiles there, so every PC using the same folder shares them. Androidbox never "
-                      "uploads anything itself, and your instances and their apps stay on each PC.", "Muted", wrap=True)
+                      "uploads anything itself, and your instances and their apps stay on each PC."), "Muted", wrap=True)
         if not folder:
-            return card(label("Sync between PCs", "Section"), intro,
-                        row(button("Choose a folder", host.choose_sync_folder, kind="secondary"), None))
-        lines = [label("Sync between PCs", "Section"), intro, pair("Folder", folder)]
+            return card(label(i18n.t("Sync between PCs"), "Section"), intro,
+                        row(button(i18n.t("Choose a folder"), host.choose_sync_folder, kind="secondary"), None))
+        lines = [label(i18n.t("Sync between PCs"), "Section"), intro, pair("Folder", folder)]
         if profiles.sync_missing():
             warning = label("That folder isn't available right now, so Androidbox is using this PC's copy until it "
                             "comes back.", "Small", wrap=True)
             styled(warning, lambda widget: widget.setStyleSheet(f"color: {COLORS['yellow']};"))
             lines.append(warning)
-        lines.append(row(button("Change folder", host.choose_sync_folder, kind="secondary"),
-                         button("Stop syncing", host.stop_syncing, kind="secondary"), None))
+        lines.append(row(button(i18n.t("Change folder"), host.choose_sync_folder, kind="secondary"),
+                         button(i18n.t("Stop syncing"), host.stop_syncing, kind="secondary"), None))
         return card(*lines)
 
     def presets_card(self, current):
@@ -1326,14 +1346,15 @@ class LibraryPage(Page):
     def refresh(self, controller):
         self.clear()
         host = self.host
-        self.intro("Apps and games", f"What's installed on {controller.instance.name}. Open one, give a game its own "
-                                     "frame rate, or put a shortcut to it on your desktop.")
+        self.intro(i18n.t("Apps and games"),
+                   i18n.t("What's installed on {name}. Open one, give a game its own frame rate, or put a shortcut to it on your desktop.",
+                          name=controller.instance.name))
         if not controller.on:
-            self.add(card(label("Start Android to see what's installed.", "Muted"),
-                          row(button("Start Android", controller.start), None)))
+            self.add(card(label(i18n.t("Start Android to see what's installed."), "Muted"),
+                          row(button(i18n.t("Start Android"), controller.start), None)))
             return
         if controller.apps is None:
-            self.add(card(label("Looking at what's installed…", "Muted")))
+            self.add(card(label(i18n.t("Looking at what's installed…"), "Muted")))
             def look():
                 found = controller.emulator.apps()
                 return found, controller.emulator.running_apps(found)
@@ -1343,16 +1364,16 @@ class LibraryPage(Page):
         use_list = host.prefs["game_list"]
         if use_list:
             self.check_list(controller)
-        refresh = button("Refresh", lambda: self.reload(controller), kind="secondary")
-        browse = button("Game list", lambda: host.show_page("gamelist"), kind="secondary")
+        refresh = button(i18n.t("Refresh"), lambda: self.reload(controller), kind="secondary")
+        browse = button(i18n.t("Game list"), lambda: host.show_page("gamelist"), kind="secondary")
         browse.setVisible(use_list)
         search = QLineEdit(self.query)
-        search.setPlaceholderText("Search apps")
+        search.setPlaceholderText(i18n.t("Search apps"))
         search.setClearButtonEnabled(True)
         search.setMinimumWidth(220)
-        stop_all = button("Stop all", lambda: host.stop_all_apps(controller), kind="secondary")
+        stop_all = button(i18n.t("Stop all"), lambda: host.stop_all_apps(controller), kind="secondary")
         stop_all.setVisible(bool(controller.running))
-        install = button("Install APK…", lambda: host.pick_apps(controller), kind="secondary")
+        install = button(i18n.t("Install APK…"), lambda: host.pick_apps(controller), kind="secondary")
         self.add(row(search, None, stop_all, browse, install, refresh))
         rows = []
         found = []
@@ -1360,43 +1381,44 @@ class LibraryPage(Page):
         for package in sorted(controller.apps, key=lambda p: (p not in controller.running, app_name(p).lower())):
             name = app_name(package)
             own = profiles.game(package).get("fps", 0)
-            rates = [("Frame rate: same as instance", 0), *[(f"{fps} FPS", fps) for fps in GAME_FRAME_RATES]]
+            rates = [(i18n.t("Frame rate: same as instance"), 0), *[(f"{fps} FPS", fps) for fps in GAME_FRAME_RATES]]
             rate = choice(rates, own)
             rate.setMinimumWidth(210)
             rate.currentIndexChanged.connect(lambda _, p=package, box=rate: host.set_game_fps(controller, p,
                                                                                                box.currentData()))
             alive = package in controller.running
-            setup = "  ·  controls set up" if keymap.profile(package).exists() else ""
+            setup = f"  ·  {i18n.t('controls set up')}" if keymap.profile(package).exists() else ""
             listed = gamelist.entry(package) if use_list else None
             name = listed["name"] if listed else name
-            lines = [label(name, "Subheading"), label(package + setup + ("  ·  running" if alive else ""), "Small")]
+            lines = [label(name, "Subheading"),
+                     label(package + setup + (f"  ·  {i18n.t('running')}" if alive else ""), "Small")]
             if listed:
                 lines.append(self.list_line(controller, listed))
             words = column(*lines, spacing=2)
-            from_list = [("Use the game list setup", lambda p=package: host.use_game_setup(controller, p))] \
+            from_list = [(i18n.t("Use the game list setup"), lambda p=package: host.use_game_setup(controller, p))] \
                 if listed and (listed.get("fps") or listed.get("controls")) else []
-            notes = [("Game list notes", lambda found=listed: self.show_notes(found))] \
+            notes = [(i18n.t("Game list notes"), lambda found=listed: self.show_notes(found))] \
                 if listed and listed.get("notes") else []
             more = menu_button([
-                ("Force stop", lambda p=package: host.stop_app(controller, p)),
-                ("Create desktop shortcut", lambda p=package: host.shortcut_for(controller, p)),
+                (i18n.t("Force stop"), lambda p=package: host.stop_app(controller, p)),
+                (i18n.t("Create desktop shortcut"), lambda p=package: host.shortcut_for(controller, p)),
                 (None, None),
                 *from_list, *notes,
-                *([("Share to the game list…", lambda p=package, n=name: host.share_to_game_list(controller, p, n)),
+                *([(i18n.t("Share to the game list…"), lambda p=package, n=name: host.share_to_game_list(controller, p, n)),
                    (None, None)] if use_list else []),
-                ("Clear data", lambda p=package: host.clear_app_data(controller, p)),
-                ("Uninstall", lambda p=package: host.uninstall_app(controller, p)),
+                (i18n.t("Clear data"), lambda p=package: host.clear_app_data(controller, p)),
+                (i18n.t("Uninstall"), lambda p=package: host.uninstall_app(controller, p)),
             ])
-            actions = [button("Stop", lambda _=False, p=package: host.stop_app(controller, p), kind="secondary")] \
+            actions = [button(i18n.t("Stop"), lambda _=False, p=package: host.stop_app(controller, p), kind="secondary")] \
                 if alive else []
             line = row(avatar(instances.initials(name), "raised"), words, None, rate, *actions,
-                       button("Open", lambda _=False, p=package: self.open_app(controller, p)), more, spacing=10)
+                       button(i18n.t("Open"), lambda _=False, p=package: self.open_app(controller, p)), more, spacing=10)
             rows.append(line)
             found.append((f"{name} {package}".lower(), line))
 
         if rows:
             heading = label("", "Section")
-            nothing = label("No apps match that search.", "Muted")
+            nothing = label(i18n.t("No apps match that search."), "Muted")
 
             def narrow(text):
                 self.query = text
@@ -1406,7 +1428,8 @@ class LibraryPage(Page):
                     match = all(word in haystack for word in words)
                     line.setVisible(match)
                     shown += match
-                heading.setText(f"Installed · {len(rows)}" if shown == len(rows) else f"Installed · {shown} of {len(rows)}")
+                installed_label = i18n.t("Installed")
+                heading.setText(f"{installed_label} · {len(rows)}" if shown == len(rows) else f"{installed_label} · {shown} / {len(rows)}")
                 nothing.setVisible(not shown)
 
             search.textChanged.connect(narrow)
@@ -1486,45 +1509,46 @@ class GameListPage(Page):
         self.clear()
         host = self.host
         controller = host.active()
-        self.intro("Game list", "How well games run on Androidbox, from people who checked them. Use a game's setup "
-                                "to start with its frame rate and controls, or add a game you've checked.")
+        self.intro(i18n.t("Game list"),
+                   i18n.t("How well games run on Androidbox, from people who checked them. Use a game's setup "
+                          "to start with its frame rate and controls, or add a game you've checked."))
         if not host.prefs["game_list"]:
-            self.add(card(label("The game list is off, so Androidbox doesn't read it from GitHub.", "Muted",
+            self.add(card(label(i18n.t("The game list is off, so Androidbox doesn't read it from GitHub."), "Muted",
                                 wrap=True),
-                          row(button("Turn it on", lambda: (host.set_pref("game_list", True), self.fetch())), None)))
+                          row(button(i18n.t("Turn it on"), lambda: (host.set_pref("game_list", True), self.fetch())), None)))
             return
         games = gamelist.games()
         checked = gamelist.checked()
         if self.fetching:
-            status = "Reading the list from GitHub…"
+            status = i18n.t("Reading the list from GitHub…")
         elif checked:
             status = f"{plural(len(games), 'game')}  ·  updated {when(time.time() - checked)}"
         else:
-            status = "Not read from GitHub yet."
-        fetch = button("Check now", self.fetch, kind="secondary")
+            status = i18n.t("Not read from GitHub yet.")
+        fetch = button(i18n.t("Check now"), self.fetch, kind="secondary")
         fetch.setEnabled(not self.fetching)
-        contribute = button("Add a game", lambda: host.open_link(gamelist.CONTRIBUTE), kind="secondary")
+        contribute = button(i18n.t("Add a game"), lambda: host.open_link(gamelist.CONTRIBUTE), kind="secondary")
         self.add(row(label(status, "Muted"), None, contribute, fetch))
         if not games:
             if not checked and not self.fetching:
                 self.fetch()
-            self.add(card(label("Nothing to show yet. The list downloads from GitHub the first time you open it, "
-                                "and is kept for when you're offline.", "Muted", wrap=True)))
+            self.add(card(label(i18n.t("Nothing to show yet. The list downloads from GitHub the first time you open it, "
+                                "and is kept for when you're offline."), "Muted", wrap=True)))
             return
 
         installed = set(controller.apps or []) if controller and controller.on else set()
         if controller and controller.on and controller.apps is None:
             host.run(controller.emulator.apps, lambda found: self.apps_loaded(controller, found), lambda _: None)
         search = QLineEdit(self.query)
-        search.setPlaceholderText("Search games")
+        search.setPlaceholderText(i18n.t("Search games"))
         search.setClearButtonEnabled(True)
         search.setMinimumWidth(220)
-        only = choice(LIST_FILTERS, self.only)
+        only = choice([(i18n.t(label_), key) for label_, key in LIST_FILTERS], self.only)
         only.setMinimumWidth(180)
         self.add(row(search, only, None))
 
         heading = label("", "Section")
-        nothing = label("No games match.", "Muted")
+        nothing = label(i18n.t("No games match."), "Muted")
         rows = []
         for entry in sorted(games.values(), key=lambda found: found["name"].lower()):
             line = self.game_row(controller, entry, entry["package"] in installed)

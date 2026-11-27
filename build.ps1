@@ -68,6 +68,7 @@ VSVersionInfo(
     --noupx `
     --icon "$PSScriptRoot\assets\androidbox.ico" `
     --add-data "$PSScriptRoot\assets\androidbox.ico;assets" `
+    --add-data "$PSScriptRoot\locales;locales" `
     --version-file "$PSScriptRoot\build\version_info.txt" `
     --exclude-module tkinter `
     --collect-all sdl2dll `

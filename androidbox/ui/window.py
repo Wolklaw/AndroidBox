@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QHB
                                QMenu, QPlainTextEdit, QScrollArea, QStackedWidget, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 
-from .. import (VERSION, browser, claude, diagnostics, emulator, gamelist, installer, instances, keymap, macros, native,
+from .. import (VERSION, browser, claude, diagnostics, emulator, gamelist, i18n, installer, instances, keymap, macros, native,
                 paths, profiles, relocate, settings, system, updates)
 from ..hotkeys import Hotkeys
 from . import tasks
@@ -64,6 +64,7 @@ class MainWindow(QMainWindow, ScreenActions):
         self.setMinimumSize(980, 660)
         profiles.start()
         self.prefs = settings.load()
+        i18n.use(self.prefs["language"])
         installer.set_mirrors(self.prefs["mirrors"])
         if self.prefs["claude_access"]:
             claude.enable()
@@ -192,14 +193,18 @@ class MainWindow(QMainWindow, ScreenActions):
 
         logo = label()
         logo.setPixmap(QIcon(str(paths.ICON)).pixmap(26, 26))
-        brand = row(logo, label("Androidbox", "Brand"), None, spacing=10, margins=(4, 0, 0, 0))
+        self.lang_btn = ToolButton("🌐", i18n.t("Switch language"), self.toggle_language)
+        self.lang_btn.setFixedSize(28, 28)
+        brand = row(logo, label("Androidbox", "Brand"), label(f"v{VERSION}", "Small"), None,
+                    self.lang_btn, spacing=8, margins=(4, 0, 0, 0))
         brand.setFixedHeight(68)
         brand.mousePressEvent = lambda event: self.logo_clicked()
         layout.addWidget(brand)
 
-        add = ToolButton(ICONS["add"], "Create an instance", self.new_instance)
-        add.setFixedSize(28, 28)
-        layout.addWidget(row(label("Instances", "Section"), None, add, margins=(4, 4, 0, 2)))
+        self.add_instance_btn = ToolButton(ICONS["add"], i18n.t("Create an instance"), self.new_instance)
+        self.add_instance_btn.setFixedSize(28, 28)
+        self.instances_heading = label(i18n.t("Instances"), "Section")
+        layout.addWidget(row(self.instances_heading, None, self.add_instance_btn, margins=(4, 4, 0, 2)))
         self.instance_list = QVBoxLayout()
         self.instance_list.setContentsMargins(0, 0, 0, 0)
         self.instance_list.setSpacing(6)
@@ -210,19 +215,20 @@ class MainWindow(QMainWindow, ScreenActions):
         self.instance_scroll.setWidgetResizable(True)
         self.instance_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(self.instance_scroll)
-        self.overview = NavButton(ICONS["apps"], "All instances")
+        self.overview = NavButton(ICONS["apps"], i18n.t("All instances"))
         self.overview.clicked.connect(lambda: self.select(None))
         layout.addWidget(self.overview)
-        self.game_list_nav = NavButton(ICONS["game"], "Game list")
+        self.game_list_nav = NavButton(ICONS["game"], i18n.t("Game list"))
         self.game_list_nav.clicked.connect(lambda: self.show_page("gamelist"))
         self.game_list_nav.setVisible(self.prefs["game_list"])
         layout.addWidget(self.game_list_nav)
         layout.addStretch(1)
 
-        layout.addWidget(button("Search everything  ·  Ctrl+K", self.open_palette, kind="secondary"))
+        self.search_button = button(i18n.t("Search everything  ·  Ctrl+K"), self.open_palette, kind="secondary")
+        layout.addWidget(self.search_button)
         self.status = label("", "Small")
         self.status.setContentsMargins(4, 6, 0, 4)
-        self.power = button("Start Android", self.toggle_power)
+        self.power = button(i18n.t("Start Android"), self.toggle_power)
         self.power_area = column(self.status, self.power, spacing=0)
         layout.addWidget(self.power_area)
         return self.sidebar
@@ -247,7 +253,7 @@ class MainWindow(QMainWindow, ScreenActions):
         tabs_layout.setSpacing(6)
         self.nav_buttons = {}
         for name in ("screen", "controls", "macros", "library", "settings"):
-            tab = TabButton(PAGES[name][1])
+            tab = TabButton(i18n.t(PAGES[name][1]))
             tab.clicked.connect(lambda _=False, page=name: self.show_page(page))
             self.nav_buttons[name] = tab
             tabs_layout.addWidget(tab)
@@ -258,7 +264,7 @@ class MainWindow(QMainWindow, ScreenActions):
         self.header_stats.hide()
         layout.addWidget(self.header_stats, 0, Qt.AlignmentFlag.AlignVCenter)
         self.profile_chip = ProfileButton()
-        self.profile_chip.setToolTip("Your profile: game controls, macros, presets and preferences")
+        self.profile_chip.setToolTip(i18n.t("Your profile: game controls, macros, presets and preferences"))
         self.profile_chip.clicked.connect(self.open_profile_menu)
         self.show_profile_name()
         layout.addWidget(self.profile_chip)
@@ -387,10 +393,10 @@ class MainWindow(QMainWindow, ScreenActions):
             return
         state = controller.state
         color = STATUS_COLORS.get(state, COLORS["dim"])
-        self.status.setText(f"<span style='color:{color}'>●</span>&nbsp; {STATES.get(state, 'Off')} · "
+        self.status.setText(f"<span style='color:{color}'>●</span>&nbsp; {i18n.t(STATES.get(state, 'Off'))} · "
                             f"{controller.instance.android}")
         off = state in ("off", "crashed")
-        self.power.setText("Start Android" if off else "Stop Android")
+        self.power.setText(i18n.t("Start Android" if off else "Stop Android"))
         # One green button per view: the Screen page already has its own Start Android in the middle
         self.power.setProperty("kind", None if off and self.page != "screen" else "secondary")
         self.power.setEnabled(state != "stopping")
@@ -429,13 +435,17 @@ class MainWindow(QMainWindow, ScreenActions):
     def update_header(self):
         controller = self.active()
         if self.page in GLOBAL_PAGES or not controller:
-            title = PAGES[self.page][1]
+            title = i18n.t(PAGES[self.page][1])
             running = sum(1 for c in self.controllers.values() if c.state == "on")
-            detail = f"{running} of {len(self.controllers)} running" if self.page == "instances" else ""
+            detail = (
+                f"v{VERSION}  ·  " + i18n.t("{running} of {total} running", running=running, total=len(self.controllers))
+                if self.page == "instances"
+                else ""
+            )
         else:
             title = controller.instance.name
             detail = controller.package if self.page == "screen" and controller.on and controller.package else \
-                f"{controller.instance.android}  ·  {STATE_WORDS.get(controller.state, 'Off')}"
+                f"{controller.instance.android}  ·  {i18n.t(STATE_WORDS.get(controller.state, 'Off'))}"
         self.header_text = (title, detail)
         self.header_title.setToolTip(title)
         self.header_detail.setToolTip(detail)
@@ -583,6 +593,41 @@ class MainWindow(QMainWindow, ScreenActions):
         self.screen.phone.update()
         for popout in self.popouts.values():
             popout.screen.phone.update()
+
+    def toggle_language(self):
+        next_lang = "en" if self.prefs["language"] == "zh_TW" else "zh_TW"
+        self.set_language(next_lang)
+
+    def set_language(self, lang, box=None):
+        if lang == self.prefs["language"] or self.closing:
+            return
+        self.set_pref("language", lang)
+        # Later, so the Settings page isn't rebuilt from inside the drop-down that asked for this
+        QTimer.singleShot(0, self.apply_language)
+
+    def apply_language(self):
+        """Switch the Androidbox UI language without restarting running instances."""
+        if self.closing:
+            return
+        i18n.use(self.prefs["language"])
+        self.instances_heading.setText(i18n.t("Instances"))
+        self.add_instance_btn.setToolTip(i18n.t("Create an instance"))
+        self.lang_btn.setToolTip(i18n.t("Switch language"))
+        self.overview.setText(i18n.t("All instances"))
+        self.game_list_nav.setText(i18n.t("Game list"))
+        self.search_button.setText(i18n.t("Search everything  ·  Ctrl+K"))
+        self.profile_chip.setToolTip(i18n.t("Your profile: game controls, macros, presets and preferences"))
+        for name, tab in self.nav_buttons.items():
+            tab.setText(i18n.t(PAGES[name][1]))
+        if self.stack.currentWidget() in self.pages.values():
+            self.show_page(self.page)
+        else:
+            self.update_power()
+        for item in self.instance_buttons.values():
+            item.update()
+        self.screen.refresh_tools(self.active(), self.prefs)
+        for popout in self.popouts.values():
+            popout.refresh_tools()
 
     def update_mirrors(self):
         active = self.active()
@@ -738,11 +783,12 @@ class MainWindow(QMainWindow, ScreenActions):
                                       QSystemTrayIcon.MessageIcon.Information, 8000)
             return
         self.offered_update = release.version
-        modal = Modal(self.dialog_parent(), f"Androidbox {release.version} is ready",
-                      "Androidbox saves your Androids, installs the update and opens again. Windows may ask for "
-                      f"permission first.{self.notes_for(release)}")
-        modal.action("Later", kind="secondary")
-        modal.action("Restart and update", self.install_update)
+        modal = Modal(self.dialog_parent(),
+                      i18n.t("Androidbox {version} is ready", version=release.version),
+                      i18n.t("Androidbox saves your Androids, installs the update and opens again. Windows may ask for permission first.") +
+                      self.notes_for(release))
+        modal.action(i18n.t("Later"), kind="secondary")
+        modal.action(i18n.t("Restart and update"), self.install_update)
         modal.open()
 
     def install_update(self):
@@ -1124,18 +1170,18 @@ class MainWindow(QMainWindow, ScreenActions):
 
         if controller:
             for name in ("screen", "controls", "macros", "library", "settings"):
-                add(f"Go to {PAGES[name][1]}", "Page", lambda name=name: self.show_page(name))
-        add("Go to All instances", "Page", lambda: self.select(None))
-        add("Go to Profile", "Page", lambda: self.show_page("profile"))
+                add(i18n.t("Go to {page}", page=i18n.t(PAGES[name][1])), i18n.t("Page"), lambda name=name: self.show_page(name))
+        add(i18n.t("Go to {page}", page=i18n.t("All instances")), i18n.t("Page"), lambda: self.select(None))
+        add(i18n.t("Go to {page}", page=i18n.t("Profile")), i18n.t("Page"), lambda: self.show_page("profile"))
         if self.prefs["game_list"]:
-            add("Go to Game list", "Page", lambda: self.show_page("gamelist"))
+            add(i18n.t("Go to {page}", page=i18n.t("Game list")), i18n.t("Page"), lambda: self.show_page("gamelist"))
         for other in self.controllers.values():
             name = other.instance.name
-            add(f"Open {name}", "Instance", lambda other=other: self.select(other.instance.id))
+            add(i18n.t("Open {name}", name=name), i18n.t("Instance"), lambda other=other: self.select(other.instance.id))
             if other.state in ("off", "crashed"):
-                add(f"Start {name}", "Instance", other.start)
+                add(i18n.t("Start {name}", name=name), i18n.t("Instance"), other.start)
             elif other.state == "on":
-                add(f"Stop {name}", "Instance", other.stop)
+                add(i18n.t("Stop {name}", name=name), i18n.t("Instance"), other.stop)
         for title, method, needs_live in (
                 ("Take a screenshot", "screenshot", True), ("Record the screen", "toggle_video", True),
                 ("Rotate the screen", "rotate", True), ("Full screen", "toggle_fullscreen", False),
@@ -1353,16 +1399,16 @@ class MainWindow(QMainWindow, ScreenActions):
         field.selectAll()
 
     def edit_mirrors(self, then=None):
-        modal = Modal(self.dialog_parent(), "Download mirrors",
-                      "Other places to get Android from when Google's servers are slow or blocked, one web address "
-                      "per line. They're tried in order after Google. Downloads are still checked against the "
-                      "checksums in the package list, whichever source they came from. Example: "
-                      "https://mirrors.cloud.tencent.com/AndroidSDK/")
+        modal = Modal(self.dialog_parent(), i18n.t("Download mirrors"),
+                      i18n.t("Other places to get Android from when Google's servers are slow or blocked, one web address "
+                             "per line. They're tried in order after Google. Downloads are still checked against the "
+                             "checksums in the package list, whichever source they came from. Example: "
+                             "https://mirrors.cloud.tencent.com/AndroidSDK/"))
         field = QPlainTextEdit("\n".join(self.prefs["mirrors"]))
         field.setPlaceholderText("https://mirrors.cloud.tencent.com/AndroidSDK/")
         field.setMinimumHeight(110)
         modal.add(field)
-        modal.cancel()
+        modal.action(i18n.t("Cancel"), kind="secondary")
 
         def save():
             lines = [line.strip() for line in field.toPlainText().splitlines() if line.strip()]
@@ -1375,7 +1421,7 @@ class MainWindow(QMainWindow, ScreenActions):
             if then:
                 then()
 
-        modal.action("Save", save)
+        modal.action(i18n.t("Save"), save)
         modal.open()
         field.setFocus()
 
@@ -1392,7 +1438,7 @@ class MainWindow(QMainWindow, ScreenActions):
             action.setChecked(name == current)
             action.triggered.connect(lambda _=False, target=name: self.switch_profile(target))
         menu.addSeparator()
-        menu.addAction("Manage profiles…", lambda: self.show_page("profile"))
+        menu.addAction(i18n.t("Manage profiles…"), lambda: self.show_page("profile"))
         menu.exec(self.profile_chip.mapToGlobal(QPoint(0, self.profile_chip.height() + 4)))
 
     def phones(self):
@@ -1798,13 +1844,13 @@ class MainWindow(QMainWindow, ScreenActions):
     def fill_tray_menu(self):
         menu = self.tray_menu
         menu.clear()
-        menu.addAction("Open Androidbox", self.bring_back)
+        menu.addAction(i18n.t("Open Androidbox"), self.bring_back)
         menu.addSeparator()
         for controller in self.controllers.values():
-            verb = "Stop" if controller.state not in ("off", "crashed") else "Start"
-            menu.addAction(f"{verb} {controller.instance.name}", lambda c=controller: self.toggle_controller(c))
+            key = "Stop {name}" if controller.state not in ("off", "crashed") else "Start {name}"
+            menu.addAction(i18n.t(key, name=controller.instance.name), lambda _=False, c=controller: self.toggle_controller(c))
         menu.addSeparator()
-        menu.addAction("Quit Androidbox", self.quit_app)
+        menu.addAction(i18n.t("Quit Androidbox"), lambda _=False: self.quit_app())
 
     def toggle_controller(self, controller):
         if controller.state in ("off", "crashed"):
@@ -1950,15 +1996,51 @@ class MainWindow(QMainWindow, ScreenActions):
         self.toast("Press F11 to leave full screen")
 
     def closeEvent(self, event):
+        if self.closing:
+            event.accept()
+            QTimer.singleShot(0, QApplication.quit)
+            return
         event.ignore()
-        if self.prefs["close_to_tray"] and self.tray_active() and not self.closing:
+        if self.prefs["close_to_tray"] and self.tray_active():
             self.hide_to_tray()
             if not self.told_about_tray:
                 self.told_about_tray = True
-                self.tray.showMessage("Androidbox is still running", "Open it again from the tray icon. Quit from "
-                                      "there to shut Android down.", QSystemTrayIcon.MessageIcon.Information, 5000)
+                self.tray.showMessage(i18n.t("Androidbox is still running"),
+                                      i18n.t("Open it again from the tray icon. Quit from there to shut Android down."),
+                                      QSystemTrayIcon.MessageIcon.Information, 5000)
             return
-        self.quit_app()
+        if getattr(self, "_close_prompt", None) is not None:
+            return
+        running_count = sum(1 for c in self.controllers.values() if c.state not in ("off", "crashed"))
+        body = (
+            i18n.t("Android is currently running ({count}). Choose whether to minimize to the tray or shut down and exit.",
+                   count=running_count)
+            if running_count
+            else i18n.t("Choose whether to minimize Androidbox to the background tray or shut down and exit.")
+        )
+        modal = Modal(self.dialog_parent(), i18n.t("Close Androidbox?"), body)
+        self._close_prompt = modal
+        modal.closed.connect(lambda: setattr(self, "_close_prompt", None))
+        modal.action(i18n.t("Cancel"), kind="secondary")
+
+        def minimize_to_tray():
+            if self.tray:
+                self.tray.setVisible(True)
+                self.hide_to_tray()
+                if not self.told_about_tray:
+                    self.told_about_tray = True
+                    self.tray.showMessage(
+                        i18n.t("Androidbox is still running"),
+                        i18n.t("Open it again from the tray icon. Quit from there to shut Android down."),
+                        QSystemTrayIcon.MessageIcon.Information,
+                        5000,
+                    )
+            else:
+                self.showMinimized()
+
+        modal.action(i18n.t("Minimize to tray"), minimize_to_tray, kind="secondary")
+        modal.action(i18n.t("Shut down & exit"), self.quit_app, kind="danger")
+        modal.open()
 
     def quit_app(self, patience=90, progress=None):
         if self.closing:
@@ -1975,7 +2057,9 @@ class MainWindow(QMainWindow, ScreenActions):
             popout.close()
         running = [c for c in self.controllers.values() if c.state not in ("off", "crashed")]
         if not running:
-            QApplication.quit()
+            if not progress:
+                self.hide()
+            QTimer.singleShot(0, QApplication.quit)
             return
         if not progress:
             self.hide()
