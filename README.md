@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://github.com/Wolklaw/Androidbox/releases/latest"><b>Download for Windows</b></a> ·
   <a href="#on-linux"><b>Install on Linux</b></a><br>
-  Windows 10 or 11 · 64-bit Linux with KVM · free · MIT license
+  Windows 10 or 11 · SparkOS, Fedora 45, Ubuntu 26.04 · free · MIT license
 </p>
 
 <p align="center">
@@ -99,11 +99,17 @@ is replaced.
 ### On Linux
 
 Androidbox runs natively on Linux: the same app, with Google's Linux build of the Android Emulator underneath,
-no Wine and no Waydroid. It runs Android on [SparkOS](https://github.com/Wolklaw/sparkos), on the PC it's developed
-on, and its tests and a start of the installed app run on Fedora in CI ([linux.yml](.github/workflows/linux.yml)). Other
-distributions should work but haven't been tried by hand, so please report what you find.
+no Wine and no Waydroid.
 
-**You need:** a 64-bit x86 Linux desktop (KDE Plasma or GNOME), Python 3.10 to 3.14, **KVM** (turn on SVM or
+| Distribution | Status |
+|---|---|
+| [SparkOS](https://github.com/Wolklaw/sparkos) | Works. Android has been run on it by hand, on the PC Androidbox is developed on |
+| Fedora 45 | Should work. CI installs it and starts it on every change ([linux.yml](.github/workflows/linux.yml)), but no Android has been run on it by hand |
+| Ubuntu 26.04 | Should work. CI runs the tests, installs it and starts it on every change, but no Android has been run on it by hand |
+
+Other distributions aren't supported. If you try one, please report what you find.
+
+**You need:** one of the systems above on a 64-bit x86 PC, Python 3.10 to 3.14, **KVM** (turn on SVM or
 VT-x in the BIOS; `/dev/kvm` must exist and be usable by your user, which is the default on current desktops), and
 the same disk space as on Windows. There is no package or installer file yet: one script installs it from the
 source of a release.
@@ -129,7 +135,7 @@ sudo bash packaging/linux/install.sh --deps
 androidbox
 ```
 
-**On Debian or Ubuntu**, install `python3-venv libsdl2-2.0-0 libxcb-cursor0 libxkbcommon-x11-0 libegl1 libnss3
+**On Ubuntu**, install `python3-venv libsdl2-2.0-0 libxcb-cursor0 libxkbcommon-x11-0 libegl1 libnss3
 libpulse0` first, then run `bash packaging/linux/install.sh --user` in the downloaded folder.
 
 **To update**, run the script again from a newer release. Androidbox doesn't update itself on Linux, but it tells
