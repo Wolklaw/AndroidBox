@@ -1,6 +1,7 @@
 from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import QLineEdit, QListWidget, QListWidgetItem
 
+from .. import i18n
 from .widgets import Modal
 
 RESULT_LIMIT = 12
@@ -11,12 +12,12 @@ class Palette(Modal):
     command is (title, what kind of thing it is, what to do)."""
 
     def __init__(self, parent, commands, secret=None, on_secret=None):
-        super().__init__(parent, "Search everything", width=580)
+        super().__init__(parent, i18n.t("Search everything"), width=580)
         self.commands = commands
         self.secret = secret
         self.on_secret = on_secret
         self.field = QLineEdit()
-        self.field.setPlaceholderText("Try: screenshot, proxy, start, saved state")
+        self.field.setPlaceholderText(i18n.t("Try: screenshot, proxy, start, saved state"))
         self.field.textChanged.connect(self.narrow)
         self.field.installEventFilter(self)
         self.results = QListWidget()

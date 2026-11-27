@@ -5,7 +5,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel,
                                QPushButton, QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
-from .. import native
+from .. import i18n, native
 from . import theme
 from .theme import COLORS, ICONS, Fonts
 
@@ -350,7 +350,7 @@ class InstanceButton(SidebarButton):
         painter.drawEllipse(QRectF(left, 42, 7, 7))
         painter.setPen(QColor(COLORS["muted"] if self.state == "on" else COLORS["faint"]))
         painter.setFont(text_font(12))
-        words = STATE_WORDS.get(self.state, "Off")
+        words = i18n.t(STATE_WORDS.get(self.state, "Off"))
         line = f"{words}  ·  {self.stats}" if self.stats and self.state == "on" else words
         painter.drawText(QRectF(left + 14, 36, self.width() - left - 22, 20), Qt.AlignmentFlag.AlignVCenter,
                          painter.fontMetrics().elidedText(line, Qt.TextElideMode.ElideRight,
