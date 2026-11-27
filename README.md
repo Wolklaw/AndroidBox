@@ -149,8 +149,14 @@ What is different from Windows:
 - **Global shortcuts and the boss key** go through the desktop's GlobalShortcuts portal (KDE Plasma, GNOME 48 and
   later, Hyprland and others), which may ask you to confirm them. In an X11 session they work without asking. On
   other Wayland desktops they need your user in the `input` group (`sudo usermod -aG input $USER`, then sign in
-  again), and then the key also still reaches the program in front. Androidbox tells you when a shortcut can't be
-  set. Shortcuts inside Androidbox's own windows always work.
+  again), and then the key also still reaches the program in front. On SparkOS the `input` group is only listed in
+  the read-only `/usr/lib/group`, so `usermod` adds nobody until you copy it to `/etc/group` first:
+  ```bash
+  grep '^input:' /usr/lib/group | sudo tee -a /etc/group
+  sudo usermod -aG input $USER
+  ```
+  `getent group input` then shows your name. Androidbox tells you when a shortcut can't be set. Shortcuts inside
+  Androidbox's own windows always work.
 - **Eco mode** lowers the emulator's share of the processor through systemd, so turning it off gives the share
   back without restarting the instance. Without a systemd user session it falls back to a lower priority that
   stays until the instance restarts.
