@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>An ad-free Android emulator for Windows.</b><br>
+  <b>An ad-free Android emulator for Windows and Linux.</b><br>
   Google Play, game controls, multiple instances, and nothing trying to sell you anything.
 </p>
 
@@ -18,8 +18,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wolklaw/Androidbox/releases/latest"><b>Download the Androidbox installer</b></a><br>
-  Windows 10 or 11 · free · MIT license
+  <a href="https://github.com/Wolklaw/Androidbox/releases/latest"><b>Download for Windows</b></a> ·
+  <a href="#on-linux"><b>Install on Linux</b></a><br>
+  Windows 10 or 11 · 64-bit Linux with KVM · free · MIT license
 </p>
 
 <p align="center">
@@ -46,7 +47,7 @@ stores stays in one folder you can delete.
 ## Why Androidbox
 
 Looking for an ad-free alternative to BlueStacks, LDPlayer, Nox or MuMu for playing mobile games and running
-apps on a Windows PC? Here is exactly what Androidbox does, and where you can check each point yourself.
+apps on a Windows or Linux PC? Here is exactly what Androidbox does, and where you can check each point yourself.
 
 | | Androidbox | Where to check |
 |---|---|---|
@@ -68,6 +69,8 @@ It's aimed at playing mobile games and running apps on a PC: key mapping and con
 several Androids at once, and an experimental Android 4.1 image for OUYA and GameStick games.
 
 ## Getting started
+
+On Linux? Go to [On Linux](#on-linux).
 
 **You need:**
 - Windows 10 or 11, 64-bit
@@ -95,33 +98,49 @@ is replaced.
 
 ### On Linux
 
-Androidbox also runs on Linux, and is meant to ship with [SparkOS](https://github.com/Wolklaw/sparkos). The Linux
-build is new: its tests run on Linux and a headless start of the installed app is checked in CI
-([linux.yml](.github/workflows/linux.yml)), but no Android has been run on it by hand yet. Please report what
-you find.
+Androidbox runs natively on Linux: the same app, with Google's Linux build of the Android Emulator underneath,
+no Wine and no Waydroid. It runs Android on [SparkOS](https://github.com/Wolklaw/sparkos), on the PC it's developed
+on, and its tests and a start of the installed app run on Fedora in CI ([linux.yml](.github/workflows/linux.yml)). Other
+distributions should work but haven't been tried by hand, so please report what you find.
 
-**You need:** a 64-bit x86 Linux desktop (KDE Plasma or GNOME), Python 3.10 to 3.14 (`--deps` on Fedora installs `python3.13` if the default is newer), **KVM** (turn on SVM or VT-x
-in the BIOS; `/dev/kvm` must exist and be usable by your user, which is the default on current desktops), and the
-same disk space as on Windows.
+**You need:** a 64-bit x86 Linux desktop (KDE Plasma or GNOME), Python 3.10 to 3.14, **KVM** (turn on SVM or
+VT-x in the BIOS; `/dev/kvm` must exist and be usable by your user, which is the default on current desktops), and
+the same disk space as on Windows. There is no package or installer file yet: one script installs it from the
+source of a release.
+
+**On SparkOS**, everything Androidbox needs is already in the system:
+
+1. Download **Source code (tar.gz)** from the [latest release](https://github.com/Wolklaw/Androidbox/releases/latest)
+   and unpack it.
+2. In a terminal, in the unpacked folder, run:
+   ```bash
+   bash packaging/linux/install.sh --user
+   ```
+3. Open **Androidbox** from the app menu (or run `androidbox`), choose **Download and install**, then
+   **Start Android**.
+
+**On Fedora**, run it with `sudo` and `--deps`: the script installs the libraries it needs with `dnf` (and
+`python3.13` if the default Python is newer than 3.14), then installs Androidbox for every user under `/usr`:
 
 ```bash
 git clone https://github.com/Wolklaw/Androidbox.git
 cd Androidbox
-bash packaging/linux/install.sh --user --deps    # --deps installs libraries with dnf; run it with sudo for that part
+sudo bash packaging/linux/install.sh --deps
 androidbox
 ```
 
-Leave out `--user` (and run with `sudo`) to install for every user under `/usr`, which is what the SparkOS image
-does. `bash packaging/linux/install.sh --uninstall` removes it again, and your Androids stay in
-`~/.local/share/Androidbox`. On Debian or Ubuntu install `python3-venv libsdl2-2.0-0 libxcb-cursor0
-libxkbcommon-x11-0 libegl1 libnss3 libpulse0` first. Then open Androidbox and choose **Download and install**,
-as on Windows.
+**On Debian or Ubuntu**, install `python3-venv libsdl2-2.0-0 libxcb-cursor0 libxkbcommon-x11-0 libegl1 libnss3
+libpulse0` first, then run `bash packaging/linux/install.sh --user` in the downloaded folder.
+
+**To update**, run the script again from a newer release. Androidbox doesn't update itself on Linux, but it tells
+you when a new release is out if you turn on **Check for updates**. `bash packaging/linux/install.sh --uninstall`
+(with `--user` if you installed it that way, or with `sudo` if not) removes it, and your Androids stay in
+`~/.local/share/Androidbox`.
 
 What is different from Windows:
 - **Global shortcuts and the boss key don't work.** A Linux desktop doesn't let a program listen for keys while
   another program has the keyboard. Shortcuts inside Androidbox's own windows work as before.
-- **No self-update.** SparkOS brings new versions with its own updates, and Androidbox only tells you about one if
-  you turn on **Check for updates**.
+- **No self-update.** Run the install script again from a newer release (see above).
 - **Eco mode can lower the emulator's priority but not raise it back** until the instance restarts: Linux lets
   a normal user only make a process nicer.
 - **Desktop shortcuts** are `.desktop` files, and *Start when you sign in* adds one to `~/.config/autostart`.
