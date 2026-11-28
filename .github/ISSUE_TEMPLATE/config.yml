@@ -1,1 +1,8 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Want to send a change?
+    url: https://github.com/Wolklaw/Androidbox/blob/main/CONTRIBUTING.md
+    about: What I accept, what to ask about first, and what I won't merge
+  - name: Security problem
+    url: https://github.com/Wolklaw/Androidbox/security/advisories/new
+    about: Report it privately, not in a public issue

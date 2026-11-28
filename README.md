@@ -710,6 +710,12 @@ in `tests/test_linux.py`.
 
 </details>
 
+## Contributing
+
+Androidbox is my project, and I decide what goes in it. Pull requests are welcome. Send fixes and game list entries
+straight away, and open an issue first for anything bigger. [CONTRIBUTING.md](CONTRIBUTING.md) lists what I accept,
+what to ask about first, and what I won't merge. Opening a pull request shows a template to fill in.
+
 ## Credits
 
 - The **Android Emulator**, its system images and its gRPC definition (`emulator_controller.proto`) are
