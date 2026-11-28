@@ -336,6 +336,35 @@ In an instance's Settings, **Automation** can keep a game running, opening it ag
 crashes, which suits idle and farming games. It can also start and stop the instance at the same time
 every day. Androidbox has to be open for either to work, and the tray counts.
 
+Give instances the same **Group** there, and the **Groups** menu on **All instances** starts or stops
+them together. **Processor limit**, under Performance, caps how much of your PC's processor an instance
+may use, so several running at once leave room for everything else. It applies right away, while the
+instance runs. Memory is already capped by the instance's **Memory** setting.
+
+### The androidbox command
+
+`androidbox` runs your instances from a terminal or a script, with or without the window open. The
+Windows installer puts it on your PATH (open a new terminal after installing), and on Linux `install.sh`
+does the same.
+
+```
+androidbox list                                  every instance and whether it's on (--json for scripts)
+androidbox start Pixel                           start it and wait until Android is up
+androidbox start --group Farm                    every instance in a group; --all for all of them
+androidbox stop --all                            stop, saving their state
+androidbox install Pixel game.apk                .apk, .apks, .xapk and .apkm
+androidbox launch Pixel com.example.game
+androidbox shell Pixel getprop ro.build.version.release
+androidbox screenshot Pixel shot.png
+androidbox record Pixel 30 clip.webm             up to 180 seconds
+androidbox macro play Pixel Daily --times 5 --report out
+```
+
+When the window is open, `start` and `stop` go through it, so the instance shows up there as usual.
+`macro play` with `--report` saves a screenshot after each run, any crashes Android logged during it,
+and `report.json` plus `report.html` with the results. `androidbox COMMAND --help` lists each command's
+options. Commands exit with 1 when something fails, with the reason on stderr.
+
 ### Network conditions
 
 Slow an instance's connection to 4G, 3G, EDGE or GPRS speeds, with the delay that goes with them, to see
@@ -407,8 +436,8 @@ for you (turning the switch off removes it again). Registration edits Claude Cod
 even when the `claude` command isn't on your PATH; restart Claude Code afterwards. The `README.md` in that
 folder also shows the `claude mcp add ...` command if you'd rather do it by hand. Claude Code then gets tools for your running
 instances: screenshots returned inline, reading what's on screen or its full accessibility tree, waiting
-for text to appear or go away, tapping, swiping, typing, installing and launching apps, recording the
-screen, and reading logs. The same folder also has a plain command-line version of the same
+for text to appear or go away, tapping, swiping, typing, installing and launching apps, listing, granting
+and taking back an app's permissions (Android 6 and newer), recording the screen, and reading logs. The same folder also has a plain command-line version of the same
 features, for scripting or when you'd rather not register an MCP server. Turn the switch off and the
 helper is deleted, and it refuses to run either way while the switch is off.
 
@@ -670,6 +699,8 @@ in `tests/test_linux.py`.
 - `androidbox/ui/palette.py`, `inspector.py`: the Ctrl+K search and the panel beside the screen
 - `tools/ui_shots.py`: renders every page to PNG files, off-screen, to check a change to the UI by eye
 - `androidbox/claude.py`: the Claude Code helper, as an MCP server and a command line
+- `androidbox/cli.py`: the `androidbox` command. `packaging/windows/` has the PyInstaller spec that builds
+  it as `androidbox-cli.exe` beside `Androidbox.exe`, and the `androidbox.cmd` the installer puts on PATH
 - `plugin/`: the Claude Code plugin, rendered from `claude.py` by `tools/build_plugin.py`
 - `androidbox/updates.py`: asks GitHub for the newest release, then downloads and verifies its installer
 - `androidbox/ui/`: the windows. `window.py`, `popout.py` and `host.py` lay them out, `phone.py` draws

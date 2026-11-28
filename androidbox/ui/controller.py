@@ -283,6 +283,8 @@ class Controller(QObject):
             background(lambda: self.emulator.block_ads(True))
         if self.instance.eco:
             background(lambda: self.emulator.set_priority(True))
+        if self.instance.cpu_limit and not self.instance.real:
+            background(lambda: self.emulator.set_cpu_limit(self.instance.cpu_limit))
         if self.instance.network:
             background(lambda: self.emulator.set_network(self.instance.network))
         if self.instance.muted:
@@ -595,6 +597,13 @@ class Controller(QObject):
         if self.bridge:
             self.bridge.key(key)
             QTimer.singleShot(400, lambda: self.refresh_volume(announce=True))
+
+    def set_cpu_limit(self, percent):
+        self.instance.cpu_limit = percent
+        self.save()
+        if self.on and not self.instance.real:
+            background(lambda: self.emulator.set_cpu_limit(percent),
+                       lambda ok: ok or self.notify.emit("This PC can't limit the processor here", "bad"))
 
     def set_network(self, profile):
         self.instance.network = profile

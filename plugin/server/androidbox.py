@@ -338,6 +338,62 @@ def tool_clear_app_data(arguments):
     return [text_content(adb(serial, "shell", "pm", "clear", arguments["package"]).strip())]
 
 
+def permission_name(name):
+    name = name.strip()
+    return name if "." in name else "android.permission." + name.upper()
+
+
+def pm(serial, *args):
+    sdk = adb(serial, "shell", "getprop", "ro.build.version.sdk").strip()
+    if sdk.isdigit() and int(sdk) < 23:
+        raise Problem("Android before 6.0 grants every permission at install, so there is nothing to change")
+    try:
+        adb(serial, "shell", "pm", *args)
+    except Problem as exc:
+        # Android answers with a whole Java stack trace; the exception line is the part that says why
+        reason = next((line.split(": ", 1)[1] for line in str(exc).splitlines()
+                       if "Exception: " in line), str(exc).splitlines()[0])
+        raise Problem(reason) from None
+
+
+def tool_app_permissions(arguments):
+    serial = resolve(arguments.get("instance"))
+    package = arguments["package"]
+    text = adb(serial, "shell", "dumpsys", "package", package)
+    if f"Package [{package}]" not in text:
+        raise Problem(f"{package} isn't installed")
+    granted, denied, listing = {}, {}, False
+    for line in text.splitlines():
+        found = re.match(r"\s+([\w.]+): granted=(true|false)", line)
+        if found:
+            (granted if found.group(2) == "true" else denied)[found.group(1)] = True
+            listing = False
+        elif line.strip() == "grantedPermissions:":
+            listing = True   # Android 4.1 lists granted ones under this heading instead
+        elif listing and re.match(r"\s+[\w.]+$", line):
+            granted[line.strip()] = True
+        else:
+            listing = False
+    denied = [name for name in denied if name not in granted]
+    lines = ["Granted:"] + ([f"  {name}" for name in sorted(granted)] or ["  none"])
+    lines += ["Not granted:"] + ([f"  {name}" for name in sorted(denied)] or ["  none"])
+    return [text_content("\n".join(lines))]
+
+
+def tool_grant_permission(arguments):
+    serial = resolve(arguments.get("instance"))
+    name = permission_name(arguments["permission"])
+    pm(serial, "grant", arguments["package"], name)
+    return [text_content(f"granted {name} to {arguments['package']}")]
+
+
+def tool_revoke_permission(arguments):
+    serial = resolve(arguments.get("instance"))
+    name = permission_name(arguments["permission"])
+    pm(serial, "revoke", arguments["package"], name)
+    return [text_content(f"took {name} back from {arguments['package']}")]
+
+
 def tool_push_file(arguments):
     serial = resolve(arguments.get("instance"))
     adb(serial, "push", arguments["path"], arguments["destination"])
@@ -436,6 +492,18 @@ TOOLS = [
                                               "Destroys its saved state, so only when asked.",
      "inputSchema": {"type": "object", "required": ["package"], "properties": {
          **INSTANCE_PROPERTY, "package": {"type": "string"}}}},
+    {"name": "app_permissions", "description": "List the permissions an app has been granted and the ones it "
+                                               "asked for but doesn't have.",
+     "inputSchema": {"type": "object", "required": ["package"], "properties": {
+         **INSTANCE_PROPERTY, "package": {"type": "string"}}}},
+    {"name": "grant_permission", "description": "Grant an app a runtime permission without the Android prompt, "
+                                                "for example CAMERA or android.permission.POST_NOTIFICATIONS. Android 6 and newer.",
+     "inputSchema": {"type": "object", "required": ["package", "permission"], "properties": {
+         **INSTANCE_PROPERTY, "package": {"type": "string"}, "permission": {"type": "string"}}}},
+    {"name": "revoke_permission", "description": "Take a runtime permission back from an app, to test how it "
+                                                 "copes. Android may stop the app when you do.",
+     "inputSchema": {"type": "object", "required": ["package", "permission"], "properties": {
+         **INSTANCE_PROPERTY, "package": {"type": "string"}, "permission": {"type": "string"}}}},
     {"name": "push_file", "description": "Copy a file from this PC onto the device, for example into "
                                          "/sdcard/Download/.",
      "inputSchema": {"type": "object", "required": ["path", "destination"], "properties": {
@@ -463,6 +531,8 @@ DISPATCH = {
     "install_apk": tool_install_apk, "launch_app": tool_launch_app, "stop_app": tool_stop_app,
     "list_apps": tool_list_apps, "current_app": tool_current_app, "wait_for_app": tool_wait_for_app, "open_url": tool_open_url,
     "clear_app_data": tool_clear_app_data, "push_file": tool_push_file, "pull_file": tool_pull_file,
+    "app_permissions": tool_app_permissions, "grant_permission": tool_grant_permission,
+    "revoke_permission": tool_revoke_permission,
     "rotate": tool_rotate, "logcat": tool_logcat, "adb": tool_adb,
 }
 

@@ -1700,6 +1700,30 @@ class MainWindow(QMainWindow, ScreenActions):
         for controller in self.controllers.values():
             controller.start()
 
+    def groups(self):
+        return sorted({c.instance.group for c in self.controllers.values() if c.instance.group}, key=str.lower)
+
+    def in_group(self, group):
+        return [c for c in self.controllers.values() if c.instance.group.lower() == group.lower()]
+
+    def start_group(self, group):
+        for controller in self.in_group(group):
+            controller.start()
+
+    def stop_group(self, group):
+        for controller in self.in_group(group):
+            controller.stop()
+
+    def set_group(self, controller, text):
+        text = " ".join(text.split())
+        if text == controller.instance.group:
+            return
+        # The same group typed another way joins it rather than starting a second one
+        text = next((group for group in self.groups() if group.lower() == text.lower()), text)
+        self.set_automation(controller, group=text)
+        if self.page == "instances":
+            self.show_page("instances")
+
     def apply_template(self, package, name):
         def apply():
             keymap.save(package, keymap.template(name))
@@ -1968,6 +1992,9 @@ class MainWindow(QMainWindow, ScreenActions):
         if request.get("start_all") or request.get("stop_all"):
             for each in list(self.controllers.values()):
                 each.start() if request.get("start_all") else each.stop()
+            return
+        if request.get("group"):
+            self.stop_group(request["group"]) if request.get("stop") else self.start_group(request["group"])
             return
         if not quiet:
             self.bring_back()

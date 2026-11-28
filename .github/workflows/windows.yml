@@ -1,0 +1,85 @@
+name: Windows
+
+# Checks the Windows build on every pull request: the tests, the app and installer build, that both programs start,
+# and that the installer puts the `androidbox` command on PATH and takes it off again. It publishes nothing; releases
+# stay in release.yml.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the app's requirements and run its tests
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m unittest discover tests -v
+          if ($LASTEXITCODE -ne 0) { throw "The tests failed" }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --version=6.7.1 --no-progress -y
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { throw "Inno Setup did not install" }
+
+      - name: Build the app and the installer
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Check that the built app starts
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:ANDROIDBOX_HOME = Join-Path $env:RUNNER_TEMP "androidbox-smoke"
+          $app = Start-Process -FilePath "dist\Androidbox\Androidbox.exe" -PassThru
+          Start-Sleep -Seconds 12
+          if ($app.HasExited) { throw "The built app quit on start, with exit code $($app.ExitCode)" }
+          if (Test-Path (Join-Path $env:ANDROIDBOX_HOME "data\crash.log")) {
+            Get-Content (Join-Path $env:ANDROIDBOX_HOME "data\crash.log")
+            throw "The built app crashed on start"
+          }
+          Stop-Process -Id $app.Id -Force
+
+      - name: Check the command line program
+        shell: pwsh
+        run: |
+          $env:ANDROIDBOX_HOME = Join-Path $env:RUNNER_TEMP "androidbox-cli"
+          New-Item -ItemType Directory -Force $env:ANDROIDBOX_HOME | Out-Null
+          dist\Androidbox\androidbox-cli.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "androidbox-cli --version failed" }
+          $listed = dist\Androidbox\androidbox-cli.exe list --json
+          if ($LASTEXITCODE -ne 0) { throw "androidbox-cli list failed" }
+          if (($listed | ConvertFrom-Json).Count -ne 0) { throw "A fresh folder listed instances: $listed" }
+
+      - name: Install for the current user, use the command from PATH, and uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\Androidbox-Setup-*.exe | Select-Object -First 1
+          $folder = Join-Path $env:LOCALAPPDATA "Programs\Androidbox"
+          $install = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+            "/CURRENTUSER", "/DIR=`"$folder`"" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Setup failed with exit code $($install.ExitCode)" }
+
+          $paths = (Get-ItemProperty HKCU:\Environment).Path -split ";"
+          if ("$folder\bin" -notin $paths) { throw "Setup did not put $folder\bin on PATH: $paths" }
+          $env:ANDROIDBOX_HOME = Join-Path $env:RUNNER_TEMP "androidbox-cli"
+          $env:Path = "$folder\bin;$env:Path"
+          androidbox --version
+          if ($LASTEXITCODE -ne 0) { throw "androidbox --version failed from PATH" }
+
+          $remove = Start-Process (Join-Path $folder "unins000.exe") -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES",
+            "/NORESTART" -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw "The uninstaller failed with exit code $($remove.ExitCode)" }
+          # The uninstaller hands itself to a copy in the temp folder and returns before that copy finishes
+          Start-Sleep -Seconds 10
+          $paths = (Get-ItemProperty HKCU:\Environment).Path -split ";"
+          if ("$folder\bin" -in $paths) { throw "The uninstaller left $folder\bin on PATH" }

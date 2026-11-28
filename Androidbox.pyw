@@ -1,6 +1,12 @@
+import sys
 import traceback
 
-from androidbox import native, paths
+from androidbox import cli, native, paths
+
+# "androidbox start Pixel" and the like are commands for the terminal, handled without opening a window. Windows'
+# windowed exe has nowhere to print them, so there they go through androidbox-cli.exe instead
+if cli.wanted(sys.argv[1:]) and sys.stdout is not None:
+    sys.exit(cli.main(sys.argv[1:]))
 
 try:
     from androidbox.ui.app import main

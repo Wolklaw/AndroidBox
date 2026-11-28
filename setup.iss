@@ -40,6 +40,8 @@ AppMutex=Local\Androidbox,Local\DroidCore
 ; AppMutex already stops Setup while Androidbox runs. Restart Manager's "close these applications" check also
 ; listed unrelated programs such as Chrome and blocked updates, so it is off
 CloseApplications=no
+; Setup puts the `androidbox` command on PATH
+ChangesEnvironment=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -60,6 +62,9 @@ Name: "hypervisor"; Description: "Turn on Windows Hypervisor Platform (Android c
 
 [Files]
 Source: "dist\Androidbox\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The `androidbox` command. Only this small folder goes on PATH, so the app's own DLLs never shadow another
+; program's
+Source: "packaging\windows\androidbox.cmd"; DestDir: "{app}\bin"; Flags: ignoreversion
 
 [InstallDelete]
 ; Left over from the two releases that were called DroidCore
@@ -135,12 +140,61 @@ begin
   end;
 end;
 
+// PATH for everyone in an install for everyone, the user's own PATH in a "just for me" install
+function EnvironmentKey: String;
+begin
+  if IsAdminInstallMode then
+    Result := 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+  else
+    Result := 'Environment';
+end;
+
+function CommandFolder: String;
+begin
+  Result := ExpandConstant('{app}\bin');
+end;
+
+function OnPath(Paths, Folder: String): Boolean;
+begin
+  Result := Pos(';' + Uppercase(Folder) + ';', ';' + Uppercase(Paths) + ';') > 0;
+end;
+
+procedure AddCommandToPath;
+var
+  Paths: String;
+begin
+  if not RegQueryStringValue(HKA, EnvironmentKey, 'Path', Paths) then
+    Paths := '';
+  if OnPath(Paths, CommandFolder) then
+    Exit;
+  if (Paths <> '') and (Copy(Paths, Length(Paths), 1) <> ';') then
+    Paths := Paths + ';';
+  RegWriteExpandStringValue(HKA, EnvironmentKey, 'Path', Paths + CommandFolder);
+end;
+
+procedure RemoveCommandFromPath;
+var
+  Paths: String;
+  Position: Integer;
+begin
+  if not RegQueryStringValue(HKA, EnvironmentKey, 'Path', Paths) or not OnPath(Paths, CommandFolder) then
+    Exit;
+  Paths := ';' + Paths + ';';
+  Position := Pos(';' + Uppercase(CommandFolder) + ';', Uppercase(Paths));
+  Delete(Paths, Position, Length(CommandFolder) + 1);
+  RegWriteExpandStringValue(HKA, EnvironmentKey, 'Path', Copy(Paths, 2, Length(Paths) - 2));
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
     RemoveUserInstall
-  else if (CurStep = ssPostInstall) and WizardIsTaskSelected('hypervisor') then
-    TurnOnHypervisor;
+  else if CurStep = ssPostInstall then
+  begin
+    AddCommandToPath;
+    if WizardIsTaskSelected('hypervisor') then
+      TurnOnHypervisor;
+  end;
 end;
 
 // Where the user moved Androidbox's files to, if they did. Androidbox writes the folder into location.txt
@@ -160,6 +214,8 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Data, Moved, Shown: String;
 begin
+  if CurUninstallStep = usUninstall then
+    RemoveCommandFromPath;
   if CurUninstallStep <> usPostUninstall then
     Exit;
   Data := ExpandConstant('{localappdata}\Androidbox');
