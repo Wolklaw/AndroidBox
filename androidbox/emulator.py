@@ -283,7 +283,8 @@ class Emulator:
     def qemu_pid(self):
         try:
             file = self.lock / "pid" if self.lock.is_dir() else self.lock
-            return int(file.read_text().split()[0])
+            # Linux's emulator ends the number with a NUL byte
+            return int(file.read_text().replace("\0", " ").split()[0])
         except (OSError, ValueError, IndexError):
             return None
 
@@ -565,6 +566,10 @@ class Emulator:
         if not pid:
             return
         native.set_priority(pid, eco)
+
+    def set_cpu_limit(self, percent):
+        pid = self.qemu_pid()
+        return bool(pid) and native.set_cpu_limit(pid, percent)
 
     @property
     def recording(self):

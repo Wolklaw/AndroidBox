@@ -89,7 +89,7 @@ def set_priority(pid, eco):
             ctypes.windll.kernel32.CloseHandle(handle)
         return
     try:
-        _set_cpu_weight(pid, eco)
+        _set_scope(pid, [("CPUWeight", _variant("t", ECO_WEIGHT if eco else NORMAL_WEIGHT))])
     except (OSError, ValueError):
         # No systemd user manager to ask. Raising a process's niceness is always allowed, lowering it again needs a
         # privilege a normal user hasn't got, so then Eco takes effect at once but is only undone for the next start
@@ -101,22 +101,77 @@ SYSTEMD = ("org.freedesktop.systemd1", "/org/freedesktop/systemd1", "org.freedes
 ECO_WEIGHT, NORMAL_WEIGHT = 20, 100
 
 
-def _set_cpu_weight(pid, eco):
-    """Puts the process in a systemd scope of its own and sets that scope's share of the processor. Unlike
-    niceness, the share can be raised again without root, so Eco can be turned off while Android runs"""
-    from . import dbus
+# systemd's "no limit" for a time value
+INFINITY = (1 << 64) - 1
+# Windows job objects, one per emulator, kept so its limit can be changed or lifted while it runs
+_jobs = {}
+
+
+def _variant(kind, value):
     from .dbus import Variant
+    return Variant(kind, value)
+
+
+def _set_scope(pid, properties):
+    """Puts the process in a systemd scope of its own and sets properties on that scope, such as its share of the
+    processor or a cap on it. Unlike niceness, these can be changed again without root while Android runs"""
+    from . import dbus
     bus = dbus.session()
     name = f"androidbox-emulator-{pid}.scope"
-    weight = [("CPUWeight", Variant("t", ECO_WEIGHT if eco else NORMAL_WEIGHT))]
     try:
-        bus.call(*SYSTEMD, "SetUnitProperties", "sba(sv)", (name, True, weight))
+        bus.call(*SYSTEMD, "SetUnitProperties", "sba(sv)", (name, True, properties))
     except dbus.DBusError as error:
         if error.name != "org.freedesktop.systemd1.NoSuchUnit":
             raise
         bus.call(*SYSTEMD, "StartTransientUnit", "ssa(sv)a(sa(sv))", (name, "fail", [
-            ("Description", Variant("s", "Android started by Androidbox")),
-            ("PIDs", Variant("au", [pid])), *weight], []))
+            ("Description", _variant("s", "Android started by Androidbox")),
+            ("PIDs", _variant("au", [pid])), *properties], []))
+
+
+def cpu_quota(percent, cores=None):
+    """systemd's CPUQuotaPerSecUSec for a share of the whole PC: 100% of one core is a million microseconds"""
+    if not percent:
+        return INFINITY
+    return int(percent / 100 * (cores or os.cpu_count() or 1) * 1_000_000)
+
+
+def set_cpu_limit(pid, percent):
+    """Caps the process at a share of the whole PC's processor, 0 for no cap. False if this PC can't do it"""
+    percent = max(0, min(100, int(percent or 0)))
+    if WINDOWS:
+        return _set_job_cap(pid, percent)
+    try:
+        _set_scope(pid, [("CPUQuotaPerSecUSec", _variant("t", cpu_quota(percent)))])
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+class _CpuRate(ctypes.Structure):
+    _fields_ = [("ControlFlags", ctypes.c_uint32), ("CpuRate", ctypes.c_uint32)]
+
+
+def _set_job_cap(pid, percent):
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    job = _jobs.get(pid)
+    if not job:
+        if not percent:
+            return True
+        job = kernel32.CreateJobObjectW(None, None)
+        # PROCESS_SET_QUOTA and PROCESS_TERMINATE, which AssignProcessToJobObject needs
+        process = kernel32.OpenProcess(0x0100 | 0x0001, False, pid)
+        if not job or not process:
+            job and kernel32.CloseHandle(job)
+            return False
+        assigned = kernel32.AssignProcessToJobObject(job, process)
+        kernel32.CloseHandle(process)
+        if not assigned:
+            kernel32.CloseHandle(job)
+            return False
+        _jobs[pid] = job
+    # JOB_OBJECT_CPU_RATE_CONTROL_ENABLE and HARD_CAP, the rate in hundredths of a percent of every core
+    info = _CpuRate(0x1 | 0x4, percent * 100) if percent else _CpuRate(0, 0)
+    return bool(kernel32.SetInformationJobObject(job, 15, ctypes.byref(info), ctypes.sizeof(info)))
 
 
 def _stat_fields(pid):
@@ -351,6 +406,27 @@ def another_copy_running(name):
     try:
         _lock_file = open(runtime / f"{name}-{os.getuid()}.lock", "w")
         fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return True
+    return False
+
+
+def window_running(name):
+    """Whether an Androidbox window holds this name, checked without taking it the way another_copy_running does"""
+    if WINDOWS:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenMutexW(0x00100000, False, f"Local\\{name}")
+        if handle:
+            kernel32.CloseHandle(handle)
+        return bool(handle)
+    import fcntl
+    lock = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp") / f"{name}-{os.getuid()}.lock"
+    if not lock.exists():
+        return False
+    try:
+        with open(lock) as file:
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(file, fcntl.LOCK_UN)
     except OSError:
         return True
     return False

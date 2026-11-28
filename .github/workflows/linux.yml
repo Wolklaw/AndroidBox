@@ -43,6 +43,14 @@ jobs:
           if [ -f "$ANDROIDBOX_HOME/data/crash.log" ]; then cat "$ANDROIDBOX_HOME/data/crash.log"; exit 1; fi
           kill "$app"
 
+      - name: Use the command line
+        run: |
+          export ANDROIDBOX_HOME="$RUNNER_TEMP/androidbox-cli"
+          mkdir -p "$ANDROIDBOX_HOME"
+          "$HOME/.local/bin/androidbox" --version
+          test "$("$HOME/.local/bin/androidbox" list --json)" = "[]"
+          "$HOME/.local/bin/androidbox" start nothing-here && exit 1 || echo "An unknown instance fails, as it should"
+
       - name: Remove it again
         run: bash packaging/linux/install.sh --user --uninstall
 

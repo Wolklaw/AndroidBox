@@ -61,20 +61,11 @@ VSVersionInfo(
 )
 "@
 
-.venv\Scripts\pyinstaller.exe "$PSScriptRoot\Androidbox.pyw" `
-    --name Androidbox `
-    --onedir `
-    --windowed `
-    --noupx `
-    --icon "$PSScriptRoot\assets\androidbox.ico" `
-    --add-data "$PSScriptRoot\assets\androidbox.ico;assets" `
-    --version-file "$PSScriptRoot\build\version_info.txt" `
-    --exclude-module tkinter `
-    --collect-all sdl2dll `
-    --collect-all av `
+# The spec builds Androidbox.exe and androidbox-cli.exe, the console program for the `androidbox` command, into
+# one folder
+.venv\Scripts\pyinstaller.exe "$PSScriptRoot\packaging\windows\Androidbox.spec" `
     --distpath "$PSScriptRoot\dist" `
     --workpath "$PSScriptRoot\build" `
-    --specpath "$PSScriptRoot\build" `
     --noconfirm `
     --clean `
     --log-level WARN

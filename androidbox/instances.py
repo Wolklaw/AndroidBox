@@ -17,6 +17,7 @@ CONSOLE_PORTS = [5580, 5582, 5584, 5578, 5576, 5574, 5572, 5570, 5568, 5566, 556
 GRPC_BASE = 8554
 FRAME_RATES = (60, 90, 120, 144, 240)
 DISK_SIZES = (16, 32, 64, 128)
+CPU_LIMITS = (10, 25, 40, 50, 60, 75, 90)
 # What the emulator's -gpu option takes. Hardware is the fast one, the others are there for GPUs that crash it
 GPU_MODES = {"host": "Graphics card", "auto": "Automatic", "swangle": "Software (slow)"}
 DEFAULT_GPU = "host"
@@ -211,6 +212,10 @@ class Instance:
     # A real phone's adb serial (a USB serial number, or host:port over Wi-Fi). Set means this instance is that
     # phone, mirrored, rather than an emulator
     device: str = ""
+    # A label shared by instances that are started and stopped together, from the window or the command line
+    group: str = ""
+    # The most of the whole PC's processor this instance may use, as a percentage. 0 means no limit
+    cpu_limit: int = 0
 
     @property
     def real(self):
@@ -272,7 +277,8 @@ def from_dict(values, **overrides):
     return Instance(**{**{k: v for k, v in values.items() if k in known}, **overrides})
 
 
-def load():
+def load(repair=True):
+    """The saved instances. repair also adds any found on disk but missing from the list, and saves it"""
     try:
         entries = json.loads(paths.INSTANCES.read_text())
     except (OSError, ValueError):
@@ -286,7 +292,7 @@ def load():
             continue
         if isinstance(instance.slot, int) and 0 <= instance.slot < len(CONSOLE_PORTS):
             instances.append(instance)
-    if recover(instances):
+    if repair and recover(instances):
         save(instances)
     return instances
 

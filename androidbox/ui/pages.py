@@ -610,6 +610,10 @@ class SettingsPage(Page):
         rate = choice([(f"{fps} FPS", fps) for fps in instances.FRAME_RATES], instance.fps)
         graphics = choice([(name, key) for key, name in instances.GPU_MODES.items()], instance.gpu_mode)
         disk = choice([(f"{size} GB", size) for size in sorted({*instances.DISK_SIZES, instance.disk})], instance.disk)
+        limits = sorted({*instances.CPU_LIMITS, instance.cpu_limit} - {0})
+        limit = choice([("No limit", 0), *((f"{percent}% of this PC", percent) for percent in limits)],
+                       instance.cpu_limit)
+        limit.currentIndexChanged.connect(lambda: controller.set_cpu_limit(limit.currentData()))
         cores.currentIndexChanged.connect(lambda: host.set_hardware(controller, cores=cores.currentData()))
         memory.currentIndexChanged.connect(lambda: host.set_hardware(controller, ram=memory.currentData()))
         display.currentIndexChanged.connect(lambda: host.pick_display(controller, display.currentData()))
@@ -624,6 +628,9 @@ class SettingsPage(Page):
             instance, host.instances, system.host_memory(), system.free_gigabytes(instance.folder))]
         self.add(card(label("Performance", "Section"), *notes,
                       setting("Processor", "More cores help heavy games.", cores), divider(),
+                      setting("Processor limit", "The most of your PC's processor this instance may use, so "
+                                                 "several running together leave room for everything else. "
+                                                 "Applies right away.", limit), divider(),
                       setting("Memory", "4 GB suits most apps and games.", memory), divider(),
                       setting("Display", "Tablet runs in landscape, which most games prefer.", display), divider(),
                       setting("Frame rate", "Higher is smoother in games that support it, and uses more power.",
@@ -691,7 +698,15 @@ class SettingsPage(Page):
             field.setMaximumWidth(120)
             field.editingFinished.connect(lambda key=key, field=field: host.set_time(controller, key, field.text()))
             times[key] = field
+        group = QLineEdit(instance.group)
+        group.setPlaceholderText("Farm")
+        group.setMaxLength(32)
+        group.setMaximumWidth(200)
+        group.editingFinished.connect(lambda: host.set_group(controller, group.text()))
         self.add(card(label("Automation", "Section"),
+                      setting("Group", "Instances with the same group start and stop together, from All "
+                                       "instances or with androidbox start --group. Blank means none.", group),
+                      divider(),
                       setting("Keep a game running", "Opens this game again whenever it closes or crashes, which "
                                                      "suits idle and farming games. Use its package name, shown on "
                                                      "the Apps page. Blank means off.", keep), divider(),
@@ -816,10 +831,20 @@ class InstancesPage(Page):
         start_all.setEnabled(any(c.state in ("off", "crashed") for c in host.controllers.values()))
         tile = button("Side by side", host.arrange, kind="secondary")
         tile.setEnabled(any(c.on for c in host.controllers.values()))
+        groups = []
+        if host.groups():
+            groups = [button("Groups", kind="secondary")]
+            menu = QMenu(groups[0])
+            for number, group in enumerate(host.groups()):
+                if number:
+                    menu.addSeparator()
+                menu.addAction(f"Start {group}", lambda g=group: host.start_group(g))
+                menu.addAction(f"Stop {group}", lambda g=group: host.stop_group(g))
+            groups[0].setMenu(menu)
         self.add(row(button("New instance", host.new_instance, kind="secondary" if host.controllers else None),
                      button("Connect your phone", host.connect_phone, kind="secondary"),
                      button("Restore a backup", host.restore_backup, kind="secondary"), tile, start_all, stop_all,
-                     None))
+                     *groups, None))
         tiles = []
         self.live = []
         for controller in host.controllers.values():

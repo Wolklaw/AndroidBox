@@ -3,6 +3,16 @@
 What is planned for Androidbox, roughly in order. Nothing here is a promise or a date.
 
 ## Done recently
+- An `androidbox` command for terminals and scripts: list, start, stop and wait for instances (by name, by
+  group or all of them), install and open apps, run shell commands, take screenshots, record the screen, and
+  play a macro several times with a report of screenshots and crashes. On PATH after the Windows installer or
+  install.sh
+- Groups of instances that start and stop together, from All instances or with `androidbox start --group`
+- A processor limit per instance, applied while it runs. Memory was already capped by the Memory setting
+- Claude helper: app_permissions, grant_permission and revoke_permission
+- Your own phone as an instance, with the same controls, keymaps, macros and recordings as the emulator
+- Clone an instance, tile instances side by side, and send the same input to several at once
+- Clipboard shared both ways, and dropping files onto the window to copy them into Android
 - Game list drafts, off unless you turn them on: Androidbox notes how long you play each game and whether it
   crashes, then offers that game's entry filled in, to check and send to GitHub as a pull request
 - Linux: the Android 4.1 image for OUYA and GameStick games, on the Linux build of the older emulator
@@ -46,18 +56,12 @@ What is planned for Androidbox, roughly in order. Nothing here is a promise or a
 ### 2. A helper app inside Android
 A small open-source app, installed only if you choose to, that makes these possible:
 - Typing non-Latin text and emoji (Persian, Arabic, CJK), which Android's `input text` cannot do
-- Clipboard shared both ways with Windows
-- Dropping files onto the window
 - Android notifications shown in Windows
 - Memory use per app on the Apps page
 - Faster and more reliable screen text for Claude
 
 ### 3. Several instances together
-- Clone an instance
-- See instances in a grid, side by side
-- Send the same keys and taps to several instances at once
-- Limit each instance's CPU and memory use
-- Start and stop groups of instances
+- Run a macro on every instance in a group at once
 
 ### 4. Scripts on top of macros
 Macros stay as they are. For people who outgrow them: a script runtime with picture search, reading text off
@@ -65,10 +69,11 @@ the screen ("tap Collect"), variables and schedules, across several instances. A
 into a script to start from. Scripts play by the game's rules; nothing here hides the emulator from a game.
 
 ### 5. Testing apps from the command line and CI
-- An `androidbox` command: create, start, install, run, screenshot and record, with no window
+- `androidbox create`, and installing the emulator and system image from the command line, so a fresh PC or
+  CI runner needs no window at all
 - A GitHub Action that starts an instance on a runner and runs a test script or a Claude session
-- Run a test script repeatedly, with a report of screenshots and video
-- More Claude tools: clipboard and permission control
+- Video in the macro report, next to the screenshots
+- A Claude tool for the clipboard
 
 ### 6. macOS on Apple Silicon
 On an M-series Mac the Android Emulator runs ARM apps natively instead of through a translator, so ARM-only
