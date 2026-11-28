@@ -53,7 +53,7 @@ apps on a Windows or Linux PC? Here is exactly what Androidbox does, and where y
 |---|---|---|
 | Ads and promoted apps | None | The source is in this repository |
 | Account | None for Androidbox itself. Google Play asks for your Google account, as on any Android phone | Nothing in the app asks for one |
-| Servers it contacts | `dl.google.com` for Android downloads, GitHub to look for updates and read the game list, Mozilla only when you install Firefox from the app, and any download mirror you add yourself | Search the source for web addresses |
+| Servers it contacts | `dl.google.com` for Android downloads, GitHub to look for updates, read the game list and download scrcpy's server when you connect a phone, Mozilla only when you install Firefox from the app, and any download mirror you add yourself | Search the source for web addresses |
 | Android engine | Google's official Android Emulator, the one inside Android Studio | [How it works](#how-it-works) |
 | Google Play | The real Play Store, on Android 16 and 11 | [Android 16 with Google Play](#android-16-with-google-play) |
 | Source code | Open, MIT license | [LICENSE](LICENSE) |
@@ -273,6 +273,20 @@ Every instance has its own apps, accounts and settings. **All instances** shows 
 live picture of its screen and its processor and memory use. Create, clone, back up to a single file,
 restore, start them all at once, open any instance in its own window, tile them side by side, and
 mirror your input to all of them at the same time.
+
+### Your own phone
+
+**Connect your phone** on the **All instances** page adds a real Android phone as an instance. Its screen
+shows in Androidbox, and you use it with the same mouse, keyboard, keymaps, controller, macros, shared
+clipboard, screenshots and recordings as the emulator. Turn on USB debugging in the phone's Developer
+options and plug it in, or use Wireless debugging and type the address the phone shows (and, the first
+time, the pairing code). Stopping the instance only stops showing the phone; the phone stays on, and
+removing it from Androidbox touches nothing on it.
+
+This uses [scrcpy](https://github.com/Genymobile/scrcpy)'s server, which Androidbox downloads from
+GitHub the first time, checks against a fixed checksum, and copies to the phone while it's connected.
+Setting the GPS position, shaking, saved states and the emulator's hardware settings don't apply to a
+real phone.
 
 ### Apps and games
 
@@ -677,6 +691,8 @@ in `tests/test_linux.py`.
   by AdGuard. Androidbox only helps you install or use them.
 - Built with **Qt for Python (PySide6)** and **gRPC**. Controller support comes from **SDL**, through
   PySDL2.
+- Connecting your own phone uses the server from **scrcpy** by Genymobile and Romain Vimont (Apache
+  License 2.0), and its video is decoded by **FFmpeg** through **PyAV**.
 - Indexed as a worked example for AI coding agents by the
   [XERJ Corpus Hub](https://hub.xerj.org/contributors/Wolklaw):
   [![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/Wolklaw/badge.svg)](https://hub.xerj.org/contributors/Wolklaw)

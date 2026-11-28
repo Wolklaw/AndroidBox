@@ -595,6 +595,9 @@ class SettingsPage(Page):
         name.setMaxLength(32)
         name.editingFinished.connect(lambda: host.rename(controller, name.text()))
         self.add(card(label("Name", "Section"), name))
+        if instance.real:
+            self.phone_settings(controller)
+            return
 
         cores = choice([(f"{count} cores", count) for count in system.core_options(instance.cores)], instance.cores)
         memory = choice([(f"{size // 1024} GB" if size % 1024 == 0 else f"{size / 1024:.1f} GB", size)
@@ -743,6 +746,43 @@ class SettingsPage(Page):
         self.add_finder()
 
 
+    def phone_settings(self, controller):
+        # A real phone keeps its own hardware, network, storage and system settings, so only what Androidbox
+        # adds on top of it is here
+        host = self.host
+        instance = controller.instance
+        autostart = Toggle(instance.autostart)
+        autostart.toggled.connect(controller.set_autostart)
+        wireless = ":" in instance.device
+        self.add(card(label("Your phone", "Section"),
+                      label(f"Connected over {'Wi-Fi' if wireless else 'USB'} as {instance.device}. Its screen "
+                            f"is {instance.width}×{instance.height}. Start this instance to show the phone here; "
+                            "stopping it only stops showing it, the phone stays on.", "Muted", wrap=True),
+                      divider(),
+                      setting("Start with Androidbox", "Shows the phone whenever Androidbox opens, if it's "
+                                                       "connected.", autostart)))
+        keep = QLineEdit(instance.keep_running)
+        keep.setPlaceholderText("com.example.game")
+        keep.setMaximumWidth(260)
+        keep.editingFinished.connect(lambda: host.set_automation(controller, keep_running=keep.text().strip()))
+        self.add(card(label("Automation", "Section"),
+                      setting("Keep a game running", "Opens this game again on the phone whenever it closes or "
+                                                     "crashes. Use its package name, shown on the Apps page. Blank "
+                                                     "means off.", keep)))
+        diagnose = button("Save…", lambda: host.collect_diagnostics(controller), kind="secondary")
+        self.add(card(label("Troubleshooting", "Section"),
+                      label("If the screen stays black, unlock the phone and check that it still allows USB "
+                            "debugging for this PC.",
+                            "Muted", wrap=True), divider(),
+                      setting("Diagnostics", "Saves the phone's log and a plain summary to one zip. Useful to "
+                                             "attach to a bug report.", diagnose)))
+        delete = button("Remove phone", lambda: host.delete_instance(controller), kind="danger")
+        self.add(card(label("Remove", "Section"),
+                      setting("Remove this phone", "Takes it off Androidbox's list. Nothing on the phone is "
+                                                   "touched.", delete)))
+        self.add_finder()
+
+
 class InstancesPage(Page):
     def __init__(self, host):
         super().__init__(width=900)
@@ -777,6 +817,7 @@ class InstancesPage(Page):
         tile = button("Side by side", host.arrange, kind="secondary")
         tile.setEnabled(any(c.on for c in host.controllers.values()))
         self.add(row(button("New instance", host.new_instance, kind="secondary" if host.controllers else None),
+                     button("Connect your phone", host.connect_phone, kind="secondary"),
                      button("Restore a backup", host.restore_backup, kind="secondary"), tile, start_all, stop_all,
                      None))
         tiles = []
@@ -794,8 +835,11 @@ class InstancesPage(Page):
             words = column(label(instance.name, "Subheading"),
                            label(f"<span style='color:{color}'>●</span>  {STATES.get(controller.state, 'Off')}",
                                  "Muted"),
-                           label(f"{instance.android}  ·  {instance.resolution}", "Small"),
-                           label(f"{instance.cores} cores  ·  {instance.ram // 1024} GB  ·  {instance.fps} FPS",
+                           label(f"{instance.android}  ·  {instance.width}×{instance.height}" if instance.real
+                                 else f"{instance.android}  ·  {instance.resolution}", "Small"),
+                           label(f"Over {'Wi-Fi' if ':' in instance.device else 'USB'}  ·  {instance.device}"
+                                 if instance.real else
+                                 f"{instance.cores} cores  ·  {instance.ram // 1024} GB  ·  {instance.fps} FPS",
                                  "Small"), stats, spacing=2)
             if controller.state in ("off", "crashed"):
                 power = button("Start", controller.start)

@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QStandardPaths, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QPixmap
 
-from .. import emulator, installer, instances, macros, native, paths, profiles, system
+from .. import emulator, installer, instances, macros, mirror, native, paths, profiles, system
 from ..bridge import Bridge
 from .tasks import background, on_main_thread
 
@@ -57,8 +57,10 @@ class Controller(QObject):
         super().__init__()
         self.instance = instance
         self.all_instances = all_instances
-        self.emulator = emulator.Emulator(instance)
+        self.emulator = mirror.RealPhone(instance) if instance.real else emulator.Emulator(instance)
         self.bridge = None
+        self.reattached = 0.0
+        self.phone_failure = None
         self.token = None
         self.phase = "off"
         self.stopping = False
@@ -177,6 +179,8 @@ class Controller(QObject):
         if phase in ("off", "crashed") and self.bridge:
             self.detach()
             moved = True
+        if phase == "on" and self.instance.real and self.bridge and self.bridge.ended:
+            moved = self.phone_stream_ended() or moved
         if package != self.package:
             self.package = package
             self.app_changed.emit()
@@ -221,9 +225,30 @@ class Controller(QObject):
         self.notify.emit(f"{self.instance.name}: {package} had stopped, opening it again", "text")
         background(lambda: self.emulator.launch(package))
 
+    def phone_stream_ended(self):
+        # The stream from a real phone stops when its screen locks adb out or scrcpy's server quits. Starting it
+        # again is cheap, but not every check, in case it keeps failing
+        failure = self.bridge.failure
+        now = time.monotonic()
+        if now - self.reattached < 10:
+            return False
+        self.reattached = now
+        # The same reason every ten seconds says nothing new
+        if failure and failure != self.phone_failure:
+            self.notify.emit(f"{self.instance.name}: {failure}", "bad")
+        self.phone_failure = failure
+        token = self.token
+        self.detach()
+        self.attach(token)
+        return True
+
     def attach(self, token):
         self.token = token
-        self.bridge = Bridge(self.instance.grpc_port, token, frames=paths.FRAMES / f"androidbox-{self.instance.id}.frame")
+        if self.instance.real:
+            self.bridge = mirror.PhoneBridge(self.instance, log=paths.LOGS / f"{self.instance.id}-mirror.log")
+        else:
+            self.bridge = Bridge(self.instance.grpc_port, token,
+                                 frames=paths.FRAMES / f"androidbox-{self.instance.id}.frame")
         self.skip_clip = True
         self.bridge.watch_clipboard(lambda text: on_main_thread(lambda: self.clip_from_android(text)))
         QGuiApplication.clipboard().dataChanged.connect(self.clip_from_windows)
@@ -244,7 +269,7 @@ class Controller(QObject):
         self.ready_at = time.monotonic()
         self.applied_fps = None
         self.refresh_frame_rate()
-        if self.instance.api == installer.LEGACY_API:
+        if self.instance.api == installer.LEGACY_API and not self.instance.real:
             # Giving the guest gamepad buttons restarts Android's input, so everything else waits for it
             background(self.emulator.map_gamepad, lambda _: self.finish_ready(), lambda _: self.finish_ready())
         else:
@@ -291,7 +316,7 @@ class Controller(QObject):
     def start(self, wipe=False, fresh=False):
         if self.state not in ("off", "crashed"):
             return
-        if not installer.runnable(self.instance.api):
+        if not self.instance.real and not installer.runnable(self.instance.api):
             self.image_missing.emit()
             return
         self.epoch += 1
@@ -423,7 +448,8 @@ class Controller(QObject):
 
     def record_part(self):
         suffix = f" part {self.video_part}" if self.video_part > 1 else ""
-        self.video = media_folder("video") / f"{self.video_stamp}{suffix}.webm"
+        extension = ".mp4" if self.instance.real else ".webm"
+        self.video = media_folder("video") / f"{self.video_stamp}{suffix}{extension}"
         self.changed.emit()
 
         def started(ok):

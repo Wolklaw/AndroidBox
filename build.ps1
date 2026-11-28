@@ -71,6 +71,7 @@ VSVersionInfo(
     --version-file "$PSScriptRoot\build\version_info.txt" `
     --exclude-module tkinter `
     --collect-all sdl2dll `
+    --collect-all av `
     --distpath "$PSScriptRoot\dist" `
     --workpath "$PSScriptRoot\build" `
     --specpath "$PSScriptRoot\build" `
