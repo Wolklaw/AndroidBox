@@ -61,7 +61,9 @@ class ScreenActions:
             self.live().rotate()
 
     def shake(self):
-        if self.live():
+        if self.live() and self.live().instance.real:
+            self.toast("Androidbox can't shake a real phone", "text")
+        elif self.live():
             self.live().shake()
             self.toast("Shaking the device")
 
@@ -147,6 +149,9 @@ class ScreenActions:
     def choose_location(self):
         controller = self.live()
         if not controller:
+            return
+        if controller.instance.real:
+            self.toast("Your phone uses its own GPS, so Androidbox can't set its location", "text")
             return
         modal = Modal(self.dialog_parent(), "Set location", "Apps will see this as the device's GPS position.")
         place = QComboBox()

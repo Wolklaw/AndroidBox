@@ -208,9 +208,18 @@ class Instance:
     # Times of day, as HH:MM, when Androidbox starts and stops this instance by itself
     start_at: str = ""
     stop_at: str = ""
+    # A real phone's adb serial (a USB serial number, or host:port over Wi-Fi). Set means this instance is that
+    # phone, mirrored, rather than an emulator
+    device: str = ""
+
+    @property
+    def real(self):
+        return bool(self.device)
 
     @property
     def android(self):
+        if self.real:
+            return "Your phone"
         return installer.ANDROID_VERSIONS.get(self.api, f"Android API {self.api}")
 
     @property
@@ -223,7 +232,7 @@ class Instance:
 
     @property
     def serial(self):
-        return f"emulator-{self.console_port}"
+        return self.device or f"emulator-{self.console_port}"
 
     @property
     def folder(self):
@@ -344,7 +353,8 @@ def new_id():
 
 
 def adopt(instances, instance):
-    write_avd(instance)
+    if not instance.real:
+        write_avd(instance)
     instances.append(instance)
     save(instances)
     return instance
@@ -376,7 +386,7 @@ def writable_then_retry(remove, path, error):
 
 
 def erase(instance):
-    for _ in range(20):
+    for _ in range(20 if not instance.real else 0):
         with contextlib.suppress(OSError):
             shutil.rmtree(instance.folder, onexc=writable_then_retry)
         if not instance.folder.exists():

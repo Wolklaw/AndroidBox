@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QHB
                                QMenu, QPlainTextEdit, QScrollArea, QStackedWidget, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 
-from .. import (VERSION, browser, claude, diagnostics, emulator, gamelist, installer, instances, keymap, macros, native,
-                paths, profiles, relocate, settings, system, updates)
+from .. import (VERSION, browser, claude, diagnostics, emulator, gamelist, installer, instances, keymap, macros,
+                mirror, native, paths, profiles, relocate, settings, system, updates)
 from ..hotkeys import DECLINED, UNSUPPORTED, Hotkeys
 from . import tasks
 from .controller import Controller, plural
@@ -887,6 +887,9 @@ class MainWindow(QMainWindow, ScreenActions):
                  lambda error: progress.done("Download stopped", f"{error}. Start the instance again to resume."))
 
     def back_up(self, controller):
+        if controller.instance.real:
+            self.toast("That's for Androidbox's own instances, not a connected phone")
+            return
         instance = controller.instance
         if controller.state not in ("off", "crashed"):
             self.toast(f"Stop {instance.name} before backing it up")
@@ -985,6 +988,111 @@ class MainWindow(QMainWindow, ScreenActions):
         name.setFocus()
         name.selectAll()
 
+    def connect_phone(self):
+        """Adds the user's own phone, over USB or Wi-Fi, as an instance that shows and controls its screen"""
+        try:
+            instances.free_slot(self.instances)
+        except RuntimeError as error:
+            self.toast(str(error), "bad")
+            return
+        modal = Modal(self.dialog_parent(), "Connect your phone",
+                      "Shows your phone's screen here and lets you use it with your mouse, keyboard, keymaps, "
+                      "gamepad and macros. Turn on USB debugging in the phone's Developer options, plug it in, "
+                      "and allow this PC when the phone asks.", width=480)
+        found = QComboBox()
+        status = label("Looking for phones…", "Small", wrap=True)
+        known = {instance.device for instance in self.instances if instance.real}
+
+        def look():
+            found.clear()
+            status.setText("Looking for phones…")
+
+            def listed(phones):
+                found.clear()
+                for serial, state, name in phones:
+                    if serial in known:
+                        continue
+                    note = {"device": "", "unauthorized": "  (allow this PC on the phone, then look again)",
+                            "offline": "  (offline, unplug it and plug it back in)"}.get(state, f"  ({state})")
+                    found.addItem(f"{name}  ·  {serial}{note}", (serial, state, name))
+                status.setText("" if found.count() else "No phone found yet. Check the cable and that USB "
+                                                        "debugging is on, or connect over Wi-Fi below.")
+
+            self.run(mirror.devices, listed, lambda _: status.setText("adb couldn't list phones"))
+
+        modal.add(label("Over USB", "Section"))
+        modal.add(row(found, button("Look again", look, kind="secondary")))
+        modal.add(status)
+        modal.add(label("Over Wi-Fi", "Section"))
+        modal.add(label("On the phone, open Developer options, then Wireless debugging. Type the address it shows. "
+                        "The first time, tap Pair device with pairing code and type that address and code too.",
+                        "Small", wrap=True))
+        address = QLineEdit()
+        address.setPlaceholderText("Address, like 192.168.1.20:41235")
+        pairing = QLineEdit()
+        pairing.setPlaceholderText("Pairing address (first time only)")
+        code = QLineEdit()
+        code.setPlaceholderText("Code")
+        code.setMaxLength(6)
+        code.setFixedWidth(90)
+        modal.add(address)
+        modal.add(row(pairing, code))
+        modal.cancel()
+        adding = []
+
+        def add():
+            if adding:
+                return False
+            wifi = address.text().strip()
+            if not wifi and not found.currentData():
+                status.setText("Pick a phone, or type its Wi-Fi address")
+                return False
+            if not wifi and found.currentData()[1] != "device":
+                status.setText("The phone hasn't allowed this PC yet. Tap Allow on the phone, then look again.")
+                return False
+            adding.append(True)
+            status.setText("Connecting…")
+
+            def work():
+                if wifi:
+                    if pairing.text().strip() and code.text().strip():
+                        ok, message = mirror.pair(pairing.text(), code.text())
+                        if not ok:
+                            raise OSError(f"Pairing didn't work: {message}")
+                    ok, message = mirror.connect(wifi)
+                    if not ok:
+                        raise OSError(f"Couldn't connect: {message}")
+                    serial = wifi if ":" in wifi else f"{wifi}:5555"
+                    name = next((name for found_serial, _, name in mirror.devices() if found_serial == serial),
+                                "Phone")
+                else:
+                    serial, _, name = found.currentData()
+                size = mirror.screen_size(serial)
+                if not size:
+                    raise OSError("The phone didn't say its screen size. Unlock it and try again.")
+                return serial, name, size
+
+            def done(result):
+                adding.clear()
+                serial, name, (width, height, density) = result
+                modal.close_modal()
+                instance = instances.create(self.instances, name, device=serial, width=width, height=height,
+                                            density=density, block_ads=False)
+                self.add_controller(instance)
+                self.select(instance.id)
+                self.toast(f"Added {instance.name}. Start it to see its screen.", "good")
+
+            def failed(error):
+                adding.clear()
+                status.setText(str(error))
+
+            self.run(work, done, failed)
+            return False
+
+        modal.action("Add phone", add)
+        modal.open()
+        look()
+
     def choose_default_storage(self):
         folder = QFileDialog.getExistingDirectory(self, "Default location for new instances",
                                                   self.prefs["default_storage_path"] or str(Path.home()))
@@ -1031,6 +1139,9 @@ class MainWindow(QMainWindow, ScreenActions):
         self.toast(f"Created {instance.name}. Its first start takes a little longer.", "good")
 
     def clone_instance(self, controller):
+        if controller.instance.real:
+            self.toast("That's for Androidbox's own instances, not a connected phone")
+            return
         if controller.state not in ("off", "crashed"):
             self.toast(f"Stop {controller.instance.name} before cloning it")
             return
@@ -1066,14 +1177,18 @@ class MainWindow(QMainWindow, ScreenActions):
 
             def erased(_=None):
                 self.deleting.discard(instance.id)
-                self.toast(f"Deleted {instance.name}", "good")
+                self.toast(f"{'Removed' if instance.real else 'Deleted'} {instance.name}", "good")
 
             popout = self.popouts.get(instance.id)
             if popout:
                 popout.close()
-            self.toast(f"Deleting {instance.name}…")
+            self.toast(f"{'Removing' if instance.real else 'Deleting'} {instance.name}…")
             controller.stop(then=stopped)
 
+        if instance.real:
+            confirm(self.dialog_parent(), f"Remove {instance.name}?", "Androidbox stops showing this phone and "
+                    "takes it off the list. Nothing on the phone is touched.", "Remove", delete, danger=True)
+            return
         confirm(self.dialog_parent(), f"Delete {instance.name}?", "This removes the instance with all of its apps "
                 "and data. This can't be undone.", "Delete", delete, danger=True)
 
